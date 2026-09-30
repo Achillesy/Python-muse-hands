@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.env
+.muse-pipe-token
+.muse-pipe-client.env
+*.log
+.DS_Store
