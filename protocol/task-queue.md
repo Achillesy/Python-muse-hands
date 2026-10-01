@@ -1,19 +1,20 @@
 # 任务队列协议（网关 /tasks/*）
 
 实现位置：`FastAPI-muse-pipe` 仓库的 `muse_server.py`（随网关 push-to-deploy
-上线）。muse-python 只是这套协议的使用方，不实现网关、不修改网关。
-本文件给实现者（云端沐丝、muse-python 客户端、排障时的人）看。
+上线）。muse-hands 只是这套协议的使用方，不实现网关、不修改网关。
+本文件给实现者（云端沐丝、muse-hands 客户端、排障时的人）看。
 
-2026-10-01 修订：`kind=shell` 直执成为主要用法（已在生产环境全链路实证）；
-新增 `needs_root` 字段与人工执行约定；Hermes 转交降为预留。
+2026-10-01 修订：记录 `kind=shell` 直执的实际用法（已在生产环境使用）；
+`needs_root` 字段与人工执行约定为 **muse-hands 侧的拟议增补**，尚未在
+网关与客户端实现，要等项目设计讨论定案后再决定是否采用。
 
 ## 角色
 
 - **提交方**：云端沐丝（大脑）。唯一的任务发起方和结果验证方。
 - **网关**：哑队列，只存取，不理解任务内容。
-- **执行方**：muse-python 客户端（`client/muse_python.py`）。普通命令
-  拿到就跑、跑完交回；`needs_root` 命令不执行，进人工待办槽等恩公
-  亲手跑完回填（见"人工执行约定"）。
+- **执行方**：muse-hands 客户端（待开工，见 DESIGN.md）。普通命令
+  拿到就跑、跑完交回；"需要权限"的命令如何处理尚在讨论（拟议方案
+  见"人工执行约定（拟议）"，未定案）。
 
 ## 认证
 
@@ -39,14 +40,17 @@ Request body：
 - `task` 必填：任务正文。`kind=shell` 时即为要执行的 shell 命令；
   空则 400。
 - `kind` 取值：
-  - `shell`：客户端以登录 shell 直接执行（v1 唯一实现）。
-  - `hermes`：预留（转交本地 agent），v1 客户端收到会回绝并标 done。
+  - `shell`：客户端以登录 shell 直接执行（2026-10-01 已在 muse-pipe
+    试验中实证，是当前唯一已实现的用法）。
+  - `hermes`：2026-09-30 旧案（转交本地 agent），未实现，是否保留
+    待 muse-hands 设计讨论决定。
   - 其他值同样回绝，避免在队列里反复重投。
   - 注意：网关对省略的 `kind` 按 `hermes` 处理，**提交方必须显式
     写 `"kind": "shell"`**，不要依赖默认值。
-- `needs_root` 可选，默认 false。true 表示需要 sudo 等权限：客户端
-  **不执行**，走人工待办槽（见下）。此字段由提交方与客户端约定，
-  网关只负责随任务记录透传（开工时对 `muse_server.py` 源码核一遍）。
+- `needs_root`（**拟议，尚未实现**）：true 表示需要 sudo 等权限。
+  是否增设此字段、客户端收到后如何处理，待 muse-hands 设计讨论
+  定案；网关侧目前只随任务记录透传未知字段（开工时对
+  `muse_server.py` 源码核一遍）。
 
 Response：`{"task_id": "task-<12位hex>", "status": "queued"}`。
 提交即唤醒正在长轮询的客户端。
@@ -94,11 +98,11 @@ Response：`{"task_id": ..., "status": "queued|in_flight|done", "result": {...}|
 - 客户端 shell 单条执行超时 300 秒：强杀、退出码记 -1、`ok=false`
   交结果，不悬挂。人工任务无执行超时（受 TASK_TTL 约束）。
 
-## 人工执行约定（needs_root）
+## 人工执行约定（拟议，未定案）
 
-1. 客户端收到 `needs_root=true`：不执行、不试运行。写本地审计日志
-   （`manual_pending`），终端醒目打印命令全文与回填方法，并把待办
-   存入 `~/.muse-python/pending.json`（重启后恢复提示）。
+1. 客户端收到 `needs_root=true`：不执行、不试运行。写本地记录，
+   终端醒目打印命令全文与回填方法，并把待办存入状态目录
+   （重启后恢复提示）。
 2. 恩公在自己的终端执行（sudo 密码只出现在他的终端；客户端永不
    接触密码、永不代跑 sudo），把完整输出粘回客户端。
 3. 客户端以同一 `task_id` POST /tasks/result，output 首行 `[manual]`；
@@ -106,7 +110,10 @@ Response：`{"task_id": ..., "status": "queued|in_flight|done", "result": {...}|
 4. 提交方（云端沐丝）下发 needs_root 任务时，必须同时在聊天里通知
    恩公——客户端提示保证记录完整，聊天通知保证他不会干等。
 
-## 本地客户端行为（client/muse_python.py）
+## 本地客户端行为（讨论基线，待设计阶段确认）
+
+下述为 2026-10-01 在 muse-pipe 本地控制台上实证过的行为，列作
+muse-hands 客户端的讨论基线；正式设计以 DESIGN.md §3 的讨论结论为准。
 
 1. 长轮询 `/tasks/poll?target=<name>`，断线/报错则 5 秒后重试，
    循环不退出。Ctrl-C 退出即急停（收不到任何命令）。
@@ -116,12 +123,13 @@ Response：`{"task_id": ..., "status": "queued|in_flight|done", "result": {...}|
    前缀），超 100KB 截断，POST /tasks/result。交结果失败则记日志，
    任务稍后会被重投（去重保证不重复执行）。
 3. 人工任务（`needs_root=true`）：按"人工执行约定"处理。
-4. 不支持的 kind：回 `ok=false` 说明不支持并标 done，审计留痕。
-5. **审计日志是硬要求**：每一步先写 `~/.muse-python/audit.jsonl`
-   再动作。字段：`ts, event, task_id, target, kind, needs_root,
-   source(auto|manual), command, ok, exit_code, output, note`。
-   事件：`command / result / manual_pending / manual_result /
+4. 不支持的 kind：回 `ok=false` 说明不支持并标 done，记录留痕。
+5. **记录是硬要求**：每一步先写本地日志再动作。字段建议：
+   `ts, event, task_id, target, kind, needs_root,
+   source(auto|manual), command, ok, exit_code, output, note`；
+   事件建议：`command / result / manual_pending / manual_result /
    client_start / client_stop / error`。终端同时打印一行人类可读摘要。
+   （具体格式待 DESIGN.md §3 讨论确认。）
 6. token 来源优先级：`--token` > 环境变量 `MP_TOKEN` >
    `~/.muse-pipe-token`（0600）。绝不打印 token。
 
