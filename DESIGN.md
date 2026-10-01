@@ -338,6 +338,5 @@ Chrome（muse.ai 页面），每台都装扩展＋host。muse.ai 消息跨设备
 - 可见性（并入 M4）：扩展认领匹配的块后 badge 变色／显示"执"，
   让他知道哪台接单了；目标机器没开页面／没装扩展 → 无人认领，
   他看到没反应 → 告诉云端换 host 重发。
-- hostname 规范值（以各机 `hostname` 实际输出为准，待恩公两台
-  分别跑 `hostname` 确认）：Windows `Codex-Win11`（待确认大小
-  写）、Mac `M1-Mac-mini`（2026-10-02 从他终端提示符看到）。
+- hostname 规范值（2026-10-02 恩公确认，无需再跑命令）：
+  Windows `Codex-Win11`、Mac `M1-Mac-mini`。比对时大小写不敏感。

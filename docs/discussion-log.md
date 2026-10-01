@@ -16,8 +16,9 @@
   host 匹配本机的块；`"host":"*"` 为显式广播；fail-closed（host 写
   错时两台都不执行）；云端按"他明确指定＞发消息的设备＞最近所在
   机器"决定 host，结果头回显 host 供核验。
-- 待他确认：两台机器 `hostname` 的准确输出（Windows 疑为
-  Codex-Win11、Mac 为 M1-Mac-mini）。
+- 待他确认：两台机器 `hostname` 的准确输出（2026-10-02 04:29
+  恩公确认：Windows `Codex-Win11`、Mac `M1-Mac-mini`，DESIGN §6.7
+  已更新为确认值）。
 - M1 的 git pull/clone 一次成功，网络无碍；按约定抽空检查
   `git config --global http.proxy` 是否已指 127.0.0.1:10808。
 
