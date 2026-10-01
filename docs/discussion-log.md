@@ -2,6 +2,25 @@
 
 按时间倒序。记录每次关键讨论的结论，供以后回溯"我当时为什么这么定"。
 
+## 2026-10-02 04:22 — 恩公切到 M1，多机同步问题提出 hostname 路由方案
+
+- 恩公从 Mac app 发消息（device_id 1922a8f1…→M1-Mac-mini），在 M1
+  上 clone 了 muse-hands（`~/Workspace_01Active/Python/muse-hands`），
+  加载已解压扩展后点测通桥不通——预期内：host 未在 M1 安装。
+  install.py 已支持 darwin，M1 上 `python3 native-host/install.py`
+  即可登记 manifest；manifest.json 自带 key，加载已解压也能拿到
+  固定扩展 ID，白名单对得上。装完重启 Chrome 再测。
+- 恩公提出：多台机器同时开 Chrome＋muse.ai 消息同步，会不会多台
+  同时抓取执行造成混乱。云端给出 **hostname 显式路由**方案并写入
+  DESIGN §6.7（待他拍板）：块首行 JSON 加 `host` 字段，扩展只执行
+  host 匹配本机的块；`"host":"*"` 为显式广播；fail-closed（host 写
+  错时两台都不执行）；云端按"他明确指定＞发消息的设备＞最近所在
+  机器"决定 host，结果头回显 host 供核验。
+- 待他确认：两台机器 `hostname` 的准确输出（Windows 疑为
+  Codex-Win11、Mac 为 M1-Mac-mini）。
+- M1 的 git pull/clone 一次成功，网络无碍；按约定抽空检查
+  `git config --global http.proxy` 是否已指 127.0.0.1:10808。
+
 ## 2026-10-01 23:15 — 回收 muse-pipe 链路的裁决：VM 侧现在停，VPS/CF 等 M5 后
 
 - 恩公三个 git 配置确认：①core.autocrlf 双层（system 层 true 残
