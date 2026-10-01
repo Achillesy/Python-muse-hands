@@ -40,8 +40,8 @@ DESIGN.md               恩公的计划、已知前提、待讨论清单（需�
 docs/discussion-log.md  讨论纪要
 protocol/task-queue.md  网关任务队列协议现状（给实现者看的）
 client/                 客户端（旧 Hermes 草稿 local_client.py 保留作
-                        历史参考；M1 正式客户端入口拟为 local_muse.py，
-                        讨论定案后开工）
+                        历史参考；M1 正式客户端入口拟按系统命名为
+                        muse_macos.py，讨论定案后开工）
 ```
 
 ## 与 muse-pipe 的关系
