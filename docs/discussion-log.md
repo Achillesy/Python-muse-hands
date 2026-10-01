@@ -2,6 +2,24 @@
 
 按时间倒序。记录每次关键讨论的结论，供以后回溯"我当时为什么这么定"。
 
+## 2026-10-01 23:15 — 回收 muse-pipe 链路的裁决：VM 侧现在停，VPS/CF 等 M5 后
+
+- 恩公三个 git 配置确认：①core.autocrlf 双层（system 层 true 残
+  留、global 层 false 覆盖生效）不是问题，机制是层叠覆盖而非
+  "兼容写法"，配 core.eol=lf 干净；②GitHub 加 achillesy@msn.com
+  提示已存在＝已绑定，提交挂到 Achillesy 名下无虞；③credential
+  helper 的 scoop 版本号路径现在（git 2.54.0）有效，升级后多半
+  不用动，验证一次 fetch 即可。
+- 回收裁决（恩公亲口）：muse-hands 线可用，往回收线。云端建议并
+  执行：**VM 侧现在停**（已动手：vm_client systemd 停、看门狗/
+  兜底作答/boot 探针三 cron disable 保留定义、可回滚）；**VPS 侧
+  （systemd 网关、nginx 的 /muse-pipe 注释）与 CF 侧等 muse-hands
+  M5 完全开发完再统一清**。两条理由：M1 的 local_client 若还开着、
+  停网关会断它的 /tasks 取命令，需先确认；CF 上 muse-pipe 本就没有
+  独立通道/token（只有橙云代理＋DNS），而 baton-relay 的
+  relay.reinhand.com（Workers 中转，自用下载铁律）绝不能动，"通
+  道"指代需和他对齐后再清。
+
 ## 2026-10-01 23:03 — 恩公用 config list 复核配置，git-proxy-001 落盘实证
 
 - 恩公在 CODEX-WIN11 贴回 `git config list`：http.proxy 与
