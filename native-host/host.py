@@ -14,6 +14,7 @@ import socket
 import struct
 import subprocess
 import sys
+import threading
 import time
 
 LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "host.log")
@@ -69,18 +70,42 @@ def run_exec(msg):
         timeout = int(msg.get("timeout") or DEFAULT_TIMEOUT)
     except (TypeError, ValueError):
         timeout = DEFAULT_TIMEOUT
+    rid = msg.get("id")
     started = time.time()
     error = None
-    try:
-        proc = subprocess.run(shell_argv(cmd), capture_output=True, timeout=timeout)
-        exit_code = proc.returncode
-        stdout = decode_output(proc.stdout)
-        stderr = decode_output(proc.stderr)
-    except subprocess.TimeoutExpired as e:
-        exit_code = -1
-        stdout = decode_output(e.stdout)
-        stderr = decode_output(e.stderr)
-        error = "timeout after %ss" % timeout
+    proc = subprocess.Popen(
+        shell_argv(cmd), stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
+    box = {}
+
+    def wait():
+        try:
+            box["out"], box["err"] = proc.communicate()
+        except Exception:
+            box["out"], box["err"] = b"", b""
+
+    t = threading.Thread(target=wait, daemon=True)
+    t.start()
+    while t.is_alive():
+        remaining = timeout - (time.time() - started)
+        if remaining <= 0:
+            proc.kill()
+            t.join(5)
+            error = "timeout after %ss" % timeout
+            break
+        t.join(min(20, remaining))
+        if t.is_alive():
+            # 约每 20 秒报一次活，防止上层长连接被当闲置掐断
+            send_message(
+                {
+                    "type": "progress",
+                    "id": rid,
+                    "elapsed_ms": int((time.time() - started) * 1000),
+                }
+            )
+    exit_code = proc.returncode if proc.returncode is not None else -1
+    stdout = decode_output(box.get("out"))
+    stderr = decode_output(box.get("err"))
     duration_ms = int((time.time() - started) * 1000)
     log("exec id=%s exit=%s ms=%s cmd=%r" % (msg.get("id"), exit_code, duration_ms, cmd[:200]))
     res = {
