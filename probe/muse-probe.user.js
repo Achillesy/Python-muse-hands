@@ -37,8 +37,9 @@
   }
 
   // ---------- 右下角角标 ----------
-  // v0.1.1：muse.ai 的应用外壳盖在普通层之上，角标塞进 DOM 也看不见；
-  // 改用浏览器顶层（popover）显示，并随每次扫描自检，被页面清掉就补回来。
+  // v0.1.1：改用浏览器顶层（popover）显示，并随每次扫描自检，被页面清掉就补回来。
+  // v0.1.2：角标原来挂在 <html> 上、在 body 之外，跟应用外壳不在同一层；
+  // 改挂进 body（恩公在 Elements 里一眼看出的），再叠顶层显示，双保险。
   var badge = document.createElement('div');
   badge.style.cssText = 'position:fixed;right:12px;bottom:12px;top:auto;left:auto;' +
     'margin:0;border:0;z-index:2147483647;' +
@@ -52,11 +53,13 @@
   fillBtn.addEventListener('click', fillTest);
   badge.appendChild(label);
   badge.appendChild(fillBtn);
-  document.documentElement.appendChild(badge);
+  (document.body || document.documentElement).appendChild(badge);
 
   function ensureBadge() {
     try {
-      if (!badge.isConnected) document.documentElement.appendChild(badge);
+      if (!badge.isConnected) {
+        (document.body || document.documentElement).appendChild(badge);
+      }
       if (typeof badge.showPopover === 'function' && !badge.matches(':popover-open')) {
         badge.setAttribute('popover', 'manual');
         badge.showPopover();
