@@ -1,4 +1,4 @@
-// muse-hands 内容脚本（M2：抓取 → 执行 → 填回）
+// muse-hands 内容脚本（M2 抓取执行 + M3 结果定型）
 //
 // 从油猴探针 v0.1.2 平移并验证过的三件本事：
 // 1) 哨兵认块：代码块第一行是 JSON 且 {"muse":"exec",...} 才认，
@@ -6,19 +6,23 @@
 // 2) 稳定判定：内容指纹 1 秒不变才算流式结束（探针实测值）；
 // 3) 填回输入框：原生 value setter + input 事件，页面框架能感知。
 //
-// 与探针的区别：抓到块不再计数，而是递给本地 host 真执行；
-// 结果只填回、不自动发送（2026-10-01 裁决①）；已执行的 id 写
-// chrome.storage.local，刷新页面也不会重演历史命令。
+// 规矩：抓到块递给本地 host 真执行；结果只填回、不自动发送
+//（2026-10-01 裁决①），除非用户在扩展面板里亲手开了自动发送；
+// 已执行的 id 写 chrome.storage.local，刷新页面不重演历史命令。
 
 (function () {
 'use strict';
 
 var STABLE_MS = 1000; // 内容多久不变算流式结束（探针实测值）
-var MAX_RESULT = 8000; // M2 临时截断上限，定型在 M3
+var MAX_RESULT = 6000; // 输出裁剪上限（M3 定型：超长保头尾、省中段）
+var KEEP_HEAD = 2000;
+var KEEP_TAIL = 3500;
 var STORE_KEY = 'mh_processed_ids';
+var AUTO_KEY = 'mh_auto_send';
 
 var processed = {}; // id -> true（已执行过，跨刷新持久化）
 var inFlight = {}; // id -> true（已发出、等结果）
+var cmdById = {}; // id -> 命令原文（填回时回显对账用）
 var firstSeenAt = {};
 var stableTimers = {};
 var ready = false;
@@ -77,9 +81,12 @@ pagePort.onMessage.addListener(function (msg) {
 if (!msg) return;
 if (msg.type === 'result') {
 delete inFlight[msg.id];
-fillComposer(formatResult(msg));
+var text = formatResult(msg);
+delete cmdById[msg.id];
+fillComposer(text);
 } else if (msg.type === 'error' && msg.id) {
 delete inFlight[msg.id];
+delete cmdById[msg.id];
 fillComposer('' + (msg.error || '未知错误'));
 }
 // progress 心跳帧只是保活长连接，不打扰页面
@@ -103,6 +110,7 @@ return;
 }
 markProcessed(block.id); // 先落账再执行：刷新、重扫都不会重演
 inFlight[block.id] = true;
+cmdById[block.id] = block.cmd;
 console.log('[muse-hands] 执行 ' + block.id + '：', block.cmd.slice(0, 120));
 try {
 getPort().postMessage({
@@ -114,22 +122,27 @@ timeout: block.timeout
 });
 } catch (e) {
 delete inFlight[block.id];
+delete cmdById[block.id];
 fillComposer('发往扩展后台失败：' + e.message);
 }
 }
 
-// ---------- 结果格式（M2 临时版，M3 定型） ----------
+// ---------- 结果格式（M3 定型） ----------
 function clip(s, label) {
 if (s == null) return '';
 s = String(s);
 if (s.length <= MAX_RESULT) return s;
-return s.slice(0, MAX_RESULT) +
-'\n';
+return s.slice(0, KEEP_HEAD) +
+'\n\n' +
+s.slice(s.length - KEEP_TAIL);
 }
 
 function formatResult(res) {
 var secs = ((res.duration_ms || 0) / 1000).toFixed(1);
-var lines = [''];
+var head = '';
+var lines = [head];
+var cmd = cmdById[res.id];
+if (cmd) lines.push('' + (cmd.length > 120? cmd.slice(0, 120) + '…': cmd));
 if (res.error) lines.push('' + res.error);
 if (res.stdout) lines.push(clip(res.stdout.replace(/\s+$/, ''), 'stdout'));
 if (res.stderr) {
@@ -139,7 +152,7 @@ lines.push(clip(res.stderr.replace(/\s+$/, ''), 'stderr'));
 return lines.join('\n');
 }
 
-// ---------- 填回输入框（只填不发） ----------
+// ---------- 填回输入框（只填不发，除非用户开了自动发送） ----------
 function fillComposer(text) {
 var ta = document.querySelector('textarea[data-hatch-composer]') ||
 document.querySelector('textarea');
@@ -150,7 +163,8 @@ var setter = Object.getOwnPropertyDescriptor(
 window.HTMLTextAreaElement.prototype, 'value').set;
 setter.call(ta, next);
 ta.dispatchEvent(new Event('input', { bubbles: true}));
-console.log('[muse-hands] 结果已填回输入框（未发送）');
+console.log('[muse-hands] 结果已填回输入框');
+maybeAutoSend();
 return;
 }
 var ce = document.querySelector('[contenteditable="true"], div[role="textbox"]');
@@ -162,10 +176,42 @@ if (!ok) {
 ce.textContent = (ce.textContent || '') + text;
 ce.dispatchEvent(new Event('input', { bubbles: true}));
 }
-console.log('[muse-hands] 结果已填回编辑框（未发送）');
+console.log('[muse-hands] 结果已填回编辑框');
+maybeAutoSend();
 return;
 }
 console.log('[muse-hands] 没找到输入框，结果只能进日志：', text.slice(0, 200));
+}
+
+// 自动发送：发送按钮的选择器是按常见聊天页猜的，真机首验要盯一眼；
+// 没命中或没开这个开关时，行为就是只填不发，不会误事。
+function maybeAutoSend() {
+try {
+chrome.storage.local.get([AUTO_KEY], function (res) {
+if (res && res[AUTO_KEY]) setTimeout(trySend, 300);
+});
+} catch (e) { /* storage 不可用则只填不发 */}
+}
+
+function trySend() {
+var sels = [
+'button[data-testid="send-button"]',
+'button[aria-label*="Send"]',
+'button[aria-label*="发送"]',
+'button[type="submit"]'
+];
+for (var i = 0; i < sels.length; i++) {
+var btns = document.querySelectorAll(sels[i]);
+for (var j = btns.length - 1; j >= 0; j--) {
+var b = btns[j];
+if (b &&!b.disabled && b.offsetParent!== null) {
+b.click();
+console.log('[muse-hands] 已点发送按钮自动发出');
+return;
+}
+}
+}
+console.log('[muse-hands] 没找到发送按钮，保持只填不发');
 }
 
 // ---------- 扫描（与探针同策略） ----------
@@ -210,6 +256,6 @@ childList: true, subtree: true, characterData: true
 
 loadProcessed(function () {
 scan();
-console.log('[muse-hands] 内容脚本已启动：抓到命令块将真执行，结果只填回不发送。');
+console.log('[muse-hands] 内容脚本已启动：抓到命令块将真执行，结果默认只填回不发送。');
 });
 })();

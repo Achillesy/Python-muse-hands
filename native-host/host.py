@@ -111,6 +111,7 @@ def run_exec(msg):
     res = {
         "type": "result",
         "id": msg.get("id"),
+        "hostname": socket.gethostname(),
         "ok": exit_code == 0 and error is None,
         "exit_code": exit_code,
         "stdout": stdout,
