@@ -2,6 +2,23 @@
 
 按时间倒序。记录每次关键讨论的结论，供以后回溯"我当时为什么这么定"。
 
+## 2026-10-01 21:55 — 正式版测试案例 001：修 VS Code 终端的 miniforge 残留
+
+- 现象：恩公 Windows 上 VS Code 开新终端（任何项目、甚至没打开项目）
+  都先冒一句 "The system cannot find the path specified."，之后一切正常。
+- 排查实锤：注册表 HKCU/HKLM 的 cmd AutoRun 均为空，`%VIRTUAL_ENV%`
+  为空；`%CMDCMDLINE%` 显示终端启动命令是
+  `C:\WINDOWS\system32\cmd.exe /K C:\Users\Achilles\miniforge3\Scripts\activate.bat`。
+  他的 miniforge3 早已彻底删除，VS Code 终端 profile 里还留着这条
+  /K 启动命令，开终端就扑空一次。
+- 恩公裁决：手动修复先放下，此事定为 muse-hands 的**测试案例 001**——
+  项目建成、能与命令行互动之后，应当能自动完成这类定位与修复：
+  找到用户 settings.json 里那条失效的 activate.bat 指向，删掉，
+  结果回帖验证。
+- 修复备忘（将来执行或恩公手动处理时用）：VS Code 用户 settings.json
+  中 Command Prompt profile 的 args 里删去指向
+  `miniforge3\Scripts\activate.bat` 的 /K 参数，保存后新开终端验证。
+
 ## 2026-10-01 21:36 — 浏览器传输探针实测收尾
 
 - 背景：20:51 恩公提出浏览器传输方案（页面中间人取代终端中间人），
