@@ -9,3 +9,5 @@ venv/
 *.log
 .DS_Store
 .vscode/
+*.pem
+native-host/com.muse.hands.json
