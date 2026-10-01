@@ -2,6 +2,20 @@
 
 按时间倒序。记录每次关键讨论的结论，供以后回溯"我当时为什么这么定"。
 
+## 2026-10-01 23:03 — 恩公用 config list 复核配置，git-proxy-001 落盘实证
+
+- 恩公在 CODEX-WIN11 贴回 `git config list`：http.proxy 与
+  https.proxy 已在列、值均为 `http://127.0.0.1:10808`，与
+  remote（https://github.com/Achillesy/Python-muse-hands.git）
+  正好配套，第一单真活落盘实证，代理闭环。
+- 云端逐条核读的三点提醒（已发他，未动手改）：①核心没有硬伤；
+  ②core.autocrlf 出现两次（前 true 后 false，最终 false 生效，
+  配 core.eol=lf 没问题；core.safecrlf=warn 在 autocrlf 关闭时
+  不起作用，冗余无害）；③user.email=achillesy@msn.com，GitHub
+  按邮箱挂提交，此邮箱若未绑进他的 GitHub 账号，提交挂不到
+  Achillesy 名下，请他自行确认；④credential.helper 指向 scoop
+  具体版本目录（git 2.54.0），升级 git 后可能指向旧版 GCM。
+
 ## 2026-10-01 22:58 — M3 格式验收：内容通过，【】标记被页面吃掉
 
 - m3-fmt 回帖：stdout 两行、stderr 一行、顺序与 cmd 回显都对，
