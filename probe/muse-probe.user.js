@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         muse-hands 探针 probe
 // @namespace    muse.hands
-// @version      0.1.0
+// @version      0.1.1
 // @description  只验证一件事：聊天页里能不能稳定抓到带哨兵标记的助手回复代码块。全程只检测、计数、打日志，绝不执行任何命令。
 // @match        https://muse.ai/*
 // @match        https://*.muse.ai/*
@@ -37,8 +37,11 @@
   }
 
   // ---------- 右下角角标 ----------
+  // v0.1.1：muse.ai 的应用外壳盖在普通层之上，角标塞进 DOM 也看不见；
+  // 改用浏览器顶层（popover）显示，并随每次扫描自检，被页面清掉就补回来。
   var badge = document.createElement('div');
-  badge.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:2147483647;' +
+  badge.style.cssText = 'position:fixed;right:12px;bottom:12px;top:auto;left:auto;' +
+    'margin:0;border:0;z-index:2147483647;' +
     'background:#111;color:#7CFC90;font:12px/1.5 monospace;padding:6px 10px;' +
     'border-radius:8px;opacity:.92;box-shadow:0 2px 8px rgba(0,0,0,.35)';
   var label = document.createElement('span');
@@ -51,11 +54,23 @@
   badge.appendChild(fillBtn);
   document.documentElement.appendChild(badge);
 
+  function ensureBadge() {
+    try {
+      if (!badge.isConnected) document.documentElement.appendChild(badge);
+      if (typeof badge.showPopover === 'function' && !badge.matches(':popover-open')) {
+        badge.setAttribute('popover', 'manual');
+        badge.showPopover();
+      }
+    } catch (e) { /* 顶层不可用时退回普通固定定位，不影响检测 */ }
+  }
+  ensureBadge();
+
   function setBadge(extra) {
     label.textContent = 'muse-probe: ' + count + (extra ? ' ' + extra : '');
   }
 
   function scan() {
+    ensureBadge();
     var els = Array.prototype.slice.call(
       document.querySelectorAll('pre code, code, [class*="code"]'));
     var hits = els.filter(function (el) {
