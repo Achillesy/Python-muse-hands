@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         muse-hands 探针 probe
 // @namespace    muse.hands
-// @version      0.1.1
+// @version      0.1.2
 // @description  只验证一件事：聊天页里能不能稳定抓到带哨兵标记的助手回复代码块。全程只检测、计数、打日志，绝不执行任何命令。
 // @match        https://muse.ai/*
 // @match        https://*.muse.ai/*
