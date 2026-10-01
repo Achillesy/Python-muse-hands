@@ -8,3 +8,4 @@ venv/
 .muse-pipe-client.env
 *.log
 .DS_Store
+.vscode/
