@@ -1,4 +1,4 @@
-// muse-hands 扩展面板（popup）
+// webai-hands 扩展面板（popup）
 // 两个控件：测通桥（直连本地 host 敲一记 ping）、自动发送开关。
 
 var statusEl = document.getElementById('status');
@@ -17,7 +17,7 @@ document.getElementById('ping').addEventListener('click', function () {
   statusEl.textContent = '连接中…';
   var port;
   try {
-    port = chrome.runtime.connectNative('com.muse.hands');
+    port = chrome.runtime.connectNative('com.webai.hands');
   } catch (e) {
     statusEl.textContent = '连接失败：' + e.message;
     return;

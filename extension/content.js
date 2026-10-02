@@ -1,4 +1,4 @@
-// muse-hands 内容脚本（核心层，与站点无关）
+// webai-hands 内容脚本（核心层，与站点无关）
 //
 // 架构：核心层 + 适配器层（每站点一份）。
 // 适配器通过 window.__museHandsAdapters[hostname] 注册；
@@ -28,10 +28,10 @@ var HOSTNAME_KEY = 'mh_local_hostname';
 var adapters = window.__museHandsAdapters || {};
 var adapter = adapters[location.hostname] || null;
 if (!adapter) {
-  console.log('[muse-hands] 当前站点无适配器：' + location.hostname + '，内容脚本不启用');
+  console.log('[webai-hands] 当前站点无适配器：' + location.hostname + '，内容脚本不启用');
   return;
 }
-console.log('[muse-hands] 适配器已选中：' + adapter.name + '（' + location.hostname + '）');
+console.log('[webai-hands] 适配器已选中：' + adapter.name + '（' + location.hostname + '）');
 
 // ---------- 状态 ----------
 var processed = {};
@@ -73,7 +73,7 @@ function loadProcessed(done) {
       ids.forEach(function (id) { processed[id] = true; });
       if (res && res[HOSTNAME_KEY]) {
         localHostname = res[HOSTNAME_KEY];
-        console.log('[muse-hands] 本机 hostname（缓存）：' + localHostname);
+        console.log('[webai-hands] 本机 hostname（缓存）：' + localHostname);
       }
       ready = true;
       if (done) done();
@@ -96,7 +96,7 @@ function markProcessed(id) {
 // ---------- 与 background 的长连接 ----------
 function getPort() {
   if (pagePort) return pagePort;
-  pagePort = chrome.runtime.connect({ name: 'muse-hands' });
+  pagePort = chrome.runtime.connect({ name: 'webai-hands' });
   pagePort.onMessage.addListener(function (msg) {
     if (!msg) return;
     if (msg.type === 'result') {
@@ -132,11 +132,11 @@ function execBlock(block) {
   // 关键：残缺块（DeepSeek 里 <code> 只有首行 JSON、cmd 为空）
   // 不标记 processed，等完整元素（<pre>）出现再执行。
   if (!block.cmd) {
-    console.log('[muse-hands] 块 ' + block.id + ' 尚无命令正文，等待完整元素');
+    console.log('[webai-hands] 块 ' + block.id + ' 尚无命令正文，等待完整元素');
     return;
   }
   if (block.host && block.host !== '*' && !hostMatches(block.host)) {
-    console.log('[muse-hands] 块 ' + block.id + ' 目标机器 ' + block.host +
+    console.log('[webai-hands] 块 ' + block.id + ' 目标机器 ' + block.host +
                 ' 与本机不符，静默忽略');
     markProcessed(block.id);
     return;
@@ -144,7 +144,7 @@ function execBlock(block) {
   markProcessed(block.id);  // 先落账再执行
   inFlight[block.id] = true;
   cmdById[block.id] = block.cmd;
-  console.log('[muse-hands] 执行 ' + block.id + '：', block.cmd.slice(0, 120));
+  console.log('[webai-hands] 执行 ' + block.id + '：', block.cmd.slice(0, 120));
   try {
     getPort().postMessage({
       type: 'exec',
@@ -171,7 +171,7 @@ function clip(s) {
 function formatResult(res) {
   var secs = ((res.duration_ms || 0) / 1000).toFixed(1);
   var lines = [];
-  lines.push('muse-hands 结果 id=' + res.id + ' exit=' + res.exit_code +
+  lines.push('webai-hands 结果 id=' + res.id + ' exit=' + res.exit_code +
              ' ' + secs + 's host=' + (res.hostname || '?'));
   var cmd = cmdById[res.id];
   if (cmd) {
@@ -194,14 +194,14 @@ function formatResult(res) {
 function fillBack(text) {
   var ok = false;
   try { ok = adapter.fillResult(text); } catch (e) {
-    console.error('[muse-hands] adapter.fillResult 抛异常：', e);
+    console.error('[webai-hands] adapter.fillResult 抛异常：', e);
     ok = false;
   }
   if (ok) {
-    console.log('[muse-hands] 结果已填回输入框');
+    console.log('[webai-hands] 结果已填回输入框');
     maybeAutoSend();
   } else {
-    console.log('[muse-hands] 适配器未找到输入框，结果只能进日志：', text.slice(0, 200));
+    console.log('[webai-hands] 适配器未找到输入框，结果只能进日志：', text.slice(0, 200));
   }
 }
 
@@ -216,11 +216,11 @@ function maybeAutoSend() {
 function trySend() {
   var ok = false;
   try { ok = adapter.clickSend(); } catch (e) {
-    console.error('[muse-hands] adapter.clickSend 抛异常：', e);
+    console.error('[webai-hands] adapter.clickSend 抛异常：', e);
     ok = false;
   }
-  if (ok) console.log('[muse-hands] 已自动发送');
-  else console.log('[muse-hands] 未找到发送按钮，保持只填不发');
+  if (ok) console.log('[webai-hands] 已自动发送');
+  else console.log('[webai-hands] 未找到发送按钮，保持只填不发');
 }
 
 // ---------- 扫描 ----------
@@ -228,7 +228,7 @@ function scan() {
   if (!ready) return;
   var els;
   try { els = adapter.findBlocks(); } catch (e) {
-    console.error('[muse-hands] adapter.findBlocks 抛异常：', e);
+    console.error('[webai-hands] adapter.findBlocks 抛异常：', e);
     return;
   }
   if (!els || !els.length) return;
@@ -238,7 +238,7 @@ function scan() {
     if (!block || processed[block.id] || inFlight[block.id]) return;
     if (!firstSeenAt[block.id]) {
       firstSeenAt[block.id] = Date.now();
-      console.log('[muse-hands] 标记块 ' + block.id + ' 出现了');
+      console.log('[webai-hands] 标记块 ' + block.id + ' 出现了');
     }
     var fp = block.id + '|' + fingerprint(text);
     clearTimeout(stableTimers[fp]);
@@ -246,7 +246,7 @@ function scan() {
       if (processed[block.id] || inFlight[block.id]) return;
       var again = parseBlock(el.innerText || el.textContent || '');
       if (!again) return;
-      console.log('[muse-hands] 标记块 ' + block.id + ' 已稳定，开始执行');
+      console.log('[webai-hands] 标记块 ' + block.id + ' 已稳定，开始执行');
       execBlock(again);
     }, STABLE_MS);
   });
@@ -262,6 +262,6 @@ new MutationObserver(function () {
 
 loadProcessed(function () {
   scan();
-  console.log('[muse-hands] 内容脚本已启动：抓到命令块将真执行，结果默认只填回不发送。');
+  console.log('[webai-hands] 内容脚本已启动：抓到命令块将真执行，结果默认只填回不发送。');
 });
 })();

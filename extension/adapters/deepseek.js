@@ -1,4 +1,4 @@
-// muse-hands adapter: chat.deepseek.com
+// webai-hands adapter: chat.deepseek.com
 (function () {
   'use strict';
   var reg = (window.__museHandsAdapters = window.__museHandsAdapters || {});

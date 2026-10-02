@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# muse-hands 本地 host（Chrome Native Messaging）
+# webai-hands 本地 host（Chrome Native Messaging）
 #
 # Chrome 通过 stdio 把它拉起：扩展发来的消息是 4 字节小端长度前缀
 # + UTF-8 JSON，host 同格式回。host 不监听任何网络端口。

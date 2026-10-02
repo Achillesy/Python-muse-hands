@@ -1,4 +1,4 @@
-# muse-hands
+# webai-hands
 
 云端 AI 的双手：Chrome 扩展在聊天页面里抓取命令块，经 Native Messaging
 交给本机 Python host 执行，结果填回页面。用户只在聊天里说话，不再当传话筒。
@@ -7,7 +7,7 @@
 
 - `extension/` — Chrome MV3 扩展：内容脚本抓取 `{"muse":"exec",…}` 命令块，
   去重、心跳，结果填回输入框（默认只填不发）
-- `native-host/` — Python host（`com.muse.hands`）：执行 shell 命令，
+- `native-host/` — Python host（`com.webai.hands`）：执行 shell 命令，
   返回结果头 / cmd / stdout / stderr / exit code / 耗时 / hostname；
   `install.py` 一键登记 host
 - `probe/` — 油猴探针（早期验证工具，阶段已收尾）
@@ -34,7 +34,7 @@ client/                 旧长轮询客户端（muse-pipe 时代遗留，仅参�
 ## 与 muse-pipe 的关系
 
 muse-pipe（VPS 网关 + 长轮询）已于 2026-10-01 按当前状态结案退役；
-muse-hands 是它的继任者，走浏览器传输路线，不依赖网关。
+webai-hands 是它的继任者，走浏览器传输路线，不依赖网关。
 
 ## 安全说明
 

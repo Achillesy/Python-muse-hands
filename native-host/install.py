@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-# muse-hands 本地 host 安装（每台机器运行一次）
+# webai-hands 本地 host 安装（每台机器运行一次）
 #
 # 干两件事：
-# 1. 生成 com.muse.hands.json（Native Messaging host 清单；里面写的是
+# 1. 生成 com.webai.hands.json（Native Messaging host 清单；里面写的是
 #    本机绝对路径，所以不进 git、每台现生成）；
 # 2. 把它登记到 Chrome：Windows 写 HKCU 注册表 NativeMessagingHosts，
 #    macOS 放进 Chrome 的 NativeMessagingHosts 目录。
@@ -14,7 +14,7 @@ import json
 import os
 import sys
 
-HOST_NAME = "com.muse.hands"
+HOST_NAME = "com.webai.hands"
 EXTENSION_ID = "aaemlgedddakpgkfoakfmkdiiheplgnl"
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -28,7 +28,7 @@ def host_launcher():
 def write_manifest(target_path):
     manifest = {
         "name": HOST_NAME,
-        "description": "muse-hands local host",
+        "description": "webai-hands local host",
         "path": host_launcher(),
         "type": "stdio",
         "allowed_origins": ["chrome-extension://%s/" % EXTENSION_ID],
@@ -64,7 +64,7 @@ def main():
     print(
         "下一步：Chrome 打开 chrome://extensions → 开开发者模式 → "
         "加载已解压的扩展程序 → 选 extension 文件夹 → 点工具栏的 "
-        "muse-hands 图标，徽标出现 ✓ 即通桥。"
+        "webai-hands 图标，徽标出现 ✓ 即通桥。"
     )
     return 0
 

@@ -1,4 +1,4 @@
-// muse-hands 扩展 service worker
+// webai-hands 扩展 service worker
 // M1：点图标 → ping 本地 host → pong 回来徽标变 ✓（通桥验收）。
 // M2：内容脚本经长连接 Port 递来 exec → 转 Native Messaging 给 host →
 //     host 的 result / progress 沿原路回内容脚本。图标徽标即状态：
@@ -6,7 +6,7 @@
 // M4 预备：pong 里的 hostname 缓存进 chrome.storage.local，
 //          供内容脚本读取，做 §6.7 hostname 路由。
 
-const HOST = "com.muse.hands";
+const HOST = "com.webai.hands";
 const HOSTNAME_KEY = "mh_local_hostname";
 let nativePort = null;
 const pending = new Map(); // exec id -> 页面 Port
@@ -48,7 +48,7 @@ function ensureNativePort() {
     }
   });
   nativePort.onDisconnect.addListener(() => {
-    console.log("[muse-hands] native port disconnected:", chrome.runtime.lastError);
+    console.log("[webai-hands] native port disconnected:", chrome.runtime.lastError);
     nativePort = null;
     setBadge("✕", "#c62828");
     for (const [id, page] of pending) {
@@ -66,13 +66,13 @@ chrome.action.onClicked.addListener(() => {
   try {
     ensureNativePort().postMessage({ type: "ping", id: "m1-" + Date.now() });
   } catch (e) {
-    console.error("[muse-hands] connectNative failed:", e);
+    console.error("[webai-hands] connectNative failed:", e);
     setBadge("✕", "#c62828");
   }
 });
 
 chrome.runtime.onConnect.addListener((pagePort) => {
-  if (pagePort.name !== "muse-hands") return;
+  if (pagePort.name !== "webai-hands") return;
   pagePort.onMessage.addListener((msg) => {
     if (msg && msg.type === "exec" && msg.id && msg.cmd) {
       try {

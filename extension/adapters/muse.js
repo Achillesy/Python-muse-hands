@@ -1,4 +1,4 @@
-// muse-hands 适配器：muse.ai
+// webai-hands 适配器：muse.ai
 // 从油猴探针 v0.1.2 平移并验证过的 DOM 逻辑。
 // muse.ai 的代码块结构是 <pre><code>...</code></pre>，
 // 这里只保留最内层 <code>，避免同一块被外层容器重复计入。
