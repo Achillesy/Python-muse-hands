@@ -3,7 +3,11 @@
 > 你是一个新开的 AI 对话，用户把这份文件扔给你，意思是：
 > "用 webai-hands 操作我的电脑"。读完这份文件，你就知道怎么做了。
 
-## 1. 环境速查
+## 1. 环境速查（先跑 diag，再看下面）
+
+新对话第一件事：发 §3 的诊断块，拿到本机 hostname 和 platform，
+再干活。**不要假设路径和系统**——下面是作者机器的参考值，
+你的可能不同，一切以 diag 回报为准：
 
 - 项目路径：~/Workspace_01Active/Python/webai-hands
 - 本机 hostname：M1-Mac-mini（macOS）
@@ -79,9 +83,9 @@ host 会回报 hostname、pid、最近 10 条执行记录、host.log 尾巴。
 ## 8. 怎么用这份文件
 
 用户开新对话时，把本文件内容贴给你。你读完：
-- 知道本机 hostname 是 M1-Mac-mini，项目在 ~/Workspace_01Active/Python/webai-hands
+- 先发 diag 块，知道本机 hostname、platform（§1 的值只是作者机器的参考）
 - 知道怎么发 muse-exec 块
-- 知道没反应时先发 diag 块
+- 知道没反应时的排查
 - 知道安全边界
 
 然后直接开始干活。不需要重新问用户环境。
