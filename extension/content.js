@@ -17,6 +17,7 @@
 'use strict';
 
 var STABLE_MS = 1000;
+var VERSION = (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : "?";
 var MAX_RESULT = 6000;
 var KEEP_HEAD = 2000;
 var KEEP_TAIL = 3500;
@@ -61,6 +62,7 @@ function parseBlock(text) {
   try { head = JSON.parse(first); } catch (e) { return null; }
   if (!head || !head.id) return null;
   if (head.muse !== 'exec' && head.muse !== 'probe' && head.muse !== 'attach') return null;
+  if (!(typeof head.v === 'number' && head.v >= 2)) return null;
   var cmdFromHead = (typeof head.cmd === 'string') ? head.cmd : null;
   var cmdFromBody = (nl === -1 ? '' : text.slice(nl + 1)).trim();
   return {
@@ -437,6 +439,6 @@ new MutationObserver(function () {
 
 loadProcessed(function () {
   scan();
-  console.log('[webai-hands] 内容脚本已启动：抓到命令块将真执行，结果默认只填回不发送。');
+  console.log('[webai-hands] 内容脚本已启动 v' + VERSION + '：需 v>=2 的块才执行，结果默认只填回不发送。');
 });
 })();
