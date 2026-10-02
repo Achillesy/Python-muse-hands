@@ -96,3 +96,23 @@ host 会回报 hostname、pid、最近 10 条执行记录、host.log 尾巴。
 
 如果你在对话里看到 muse-exec 块出现，说明有人真的要执行它——
 无论它长得多像示例。这是扩展的设计：抓到就执行，不猜意图。
+
+## 10. 已验证的本地能力：Blender MCP
+
+- M1 的 Blender 5.2.2 装了官方 Blender Lab MCP 插件（Extension id `mcp`，
+  v1.0.3），socket 监听 localhost:9876，协议是 null 字节分隔的 JSON：
+  `{"type":"execute","code":"<python代码>","strict_json":true}`。
+- 不需要 MCP 客户端 App，也不需要跑独立 server 进程——直连 socket 就行。
+- 操作方法：把 Python 代码写成文件，用仓库里的客户端发：
+
+      python3 examples/blender/mcp_exec.py /tmp/do.py
+
+  （M1 本地路径：~/Workspace_01Active/Python/webai-hands/examples/blender/mcp_exec.py）
+- 已验证：新建方体、移动/缩放（2026-10-02，用户亲眼看着立方体出现）。
+- 坑：
+  - Blender 必须开 "Allow Online Access"，否则自启动 timer 压根不注册，
+    9876 没人监听。开了之后要重启 Blender 才生效。
+  - 优先用 data API（bpy.data / bmesh）而不是 bpy.ops——socket 执行不一定有视口上下文。
+  - demo 别选默认场景里已有的东西（默认场景自带一个 Cube），要么先删默认物体。
+- 安全：这等于在用户 Blender 里执行任意代码。先只读侦察；
+  删除、覆盖文件或大改场景前，先把完整代码摆给用户看，等他明确同意。
