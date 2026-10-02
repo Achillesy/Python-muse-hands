@@ -1,11 +1,4 @@
-// muse-hands 适配器：chat.deepseek.com
-//
-// DeepSeek 渲染一个代码块时，会在 DOM 里放多份副本：
-//   - <pre>  内容完整（首行 JSON + 命令正文）
-//   - <code> 有时只有首行 JSON，正文丢失
-// 核心层对残缺元素不标记 processed，等完整元素出现再执行。
-// 所以这里把 <pre> 和 <code> 全部交出去，让核心层自己挑。
-
+// muse-hands adapter: chat.deepseek.com
 (function () {
   'use strict';
   var reg = (window.__museHandsAdapters = window.__museHandsAdapters || {});
@@ -20,8 +13,6 @@
     },
 
     fillResult: function (text) {
-      // DeepSeek 页面只有一个 textarea（诊断实测）。
-      // 用原生 setter + input 事件让 React 感知变化。
       var ta = document.querySelector('textarea');
       if (!ta) return false;
       var cur = ta.value || '';
@@ -34,9 +25,38 @@
     },
 
     clickSend: function () {
-      // DeepSeek 的发送按钮没有 aria-label、没有 type=submit（诊断实测）。
-      // 暂不自动发送，保持只填不发；需要时再补一个选择器。
-      return false;
+      var sels = [
+        'button[aria-label*="发送"]',
+        'button[aria-label*="Send"]',
+        'button[type="submit"]'
+      ];
+      for (var i = 0; i < sels.length; i++) {
+        var btns = document.querySelectorAll(sels[i]);
+        for (var j = btns.length - 1; j >= 0; j--) {
+          var b = btns[j];
+          if (b && !b.disabled && b.offsetParent !== null) {
+            b.click();
+            return true;
+          }
+        }
+      }
+      var ta = document.querySelector('textarea');
+      if (!ta) return false;
+      try {
+        ta.focus();
+        var ev = function (t) {
+          return new KeyboardEvent(t, {
+            key: 'Enter', code: 'Enter', keyCode: 13, which: 13,
+            bubbles: true, cancelable: true, composed: true
+          });
+        };
+        ta.dispatchEvent(ev('keydown'));
+        ta.dispatchEvent(ev('keypress'));
+        ta.dispatchEvent(ev('keyup'));
+        return true;
+      } catch (e) {
+        return false;
+      }
     }
   };
 })();
