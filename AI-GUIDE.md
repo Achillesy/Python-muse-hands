@@ -163,3 +163,18 @@ host 会回报 hostname、pid、最近 10 条执行记录、host.log 尾巴。
 - 改扩展代码后，**光刷新页面不够**，要去 chrome://extensions 点重载，
   才会重新注入 content script（行号可判断新旧）。
 - 改 host.py 后要重载扩展让它重启（旧进程还跑旧代码）。
+
+## 14. chrome-devtools-mcp 走不通（2026-10-02 实测）
+
+想用 CDP 自动调试网页，试了 chrome-devtools-mcp（1.10.1），**在 host
+通道上打不通**，结论：调试页面用 §11 探针，别走 CDP。
+
+- Chrome 154 的 chrome://inspect/#remote-debugging 能开调试服务，
+  监听 127.0.0.1:9222，但那是**新协议**：
+  - 标准 CDP 端点 /json/version 等**全 404**
+  - 直接 WebSocket 探 → **403 Connection rejected**
+- `--autoConnect` 要读 profile 下的 DevToolsActivePort 文件，但 host 是
+  Chrome 子进程，**被 macOS TCC 挡住**（Operation not permitted）。
+- `--browserUrl http://127.0.0.1:9222` 也失败（拿不到 /json/version）。
+- 唯一可能的解法是给 Chrome 完全磁盘访问权限，安全敏感，未采纳。
+- **替代**：§11 DOM 探针，只读、零依赖、已验证可用。
