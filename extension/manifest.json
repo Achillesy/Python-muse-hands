@@ -20,7 +20,7 @@
       "run_at": "document_idle"
     }
   ],
-  "description": "把聊天页里约定的命令块递给本机程序执行，再把结果填回页面。webai-hands 正式版（开发中）。",
+  "description": "把网页 AI 聊天里的命令块递给本机程序执行，再把结果填回页面。",
   "host_permissions": [
     "https://muse.ai/*",
     "https://chat.deepseek.com/*"
