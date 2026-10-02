@@ -12,6 +12,31 @@
       );
     },
 
+
+    uploadFile: function (file) {
+      // file: {name, mime, bytes(Uint8Array)}
+      var inputs = document.querySelectorAll('input[type=file]');
+      if (!inputs.length) return { ok: false, why: '页面无 input[type=file]' };
+      var input = inputs[0];
+      var blob, f;
+      try {
+        blob = new Blob([file.bytes], { type: file.mime || 'application/octet-stream' });
+        f = new File([blob], file.name, { type: file.mime || 'application/octet-stream' });
+      } catch (e) {
+        return { ok: false, why: '构造 File 失败：' + e.message };
+      }
+      var dt = new DataTransfer();
+      dt.items.add(f);
+      try {
+        input.files = dt.files;
+      } catch (e) {
+        return { ok: false, why: '写入 input.files 失败：' + e.message };
+      }
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      return { ok: true };
+    },
+
     fillResult: function (text) {
       var ta = document.querySelector('textarea');
       if (!ta) return false;

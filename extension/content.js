@@ -47,6 +47,7 @@ var pendingResults = [];
 var flushTimer = null;
 var flushHardDeadline = 0;
 var incompleteWarned = {};
+var attachMeta = {}; // attach id -> {text, send}
 
 // ---------- 哨兵解析 ----------
 function parseBlock(text) {
@@ -54,14 +55,20 @@ function parseBlock(text) {
   var first = nl === -1 ? text : text.slice(0, nl);
   var head;
   try { head = JSON.parse(first); } catch (e) { return null; }
-  if (!head || head.muse !== 'exec' || !head.id) return null;
+  if (!head || !head.id) return null;
+  if (head.muse !== 'exec' && head.muse !== 'probe' && head.muse !== 'attach') return null;
   var cmdFromHead = (typeof head.cmd === 'string') ? head.cmd : null;
   var cmdFromBody = (nl === -1 ? '' : text.slice(nl + 1)).trim();
   return {
+    kind: head.muse,
     id: String(head.id),
     host: head.host || null,
     shell: head.shell || null,
     timeout: head.timeout || null,
+    sel: (typeof head.sel === 'string') ? head.sel : null,
+    path: (typeof head.path === 'string') ? head.path : null,
+    text: (typeof head.text === 'string') ? head.text : null,
+    send: !!head.send,
     cmd: cmdFromHead !== null ? cmdFromHead : cmdFromBody
   };
 }
@@ -129,7 +136,9 @@ function getPort() {
   pagePort = chrome.runtime.connect({ name: 'webai-hands' });
   pagePort.onMessage.addListener(function (msg) {
     if (!msg) return;
-    if (msg.type === 'result') {
+    if (msg.type === 'file') {
+      onFileArrived(msg);
+    } else if (msg.type === 'result') {
       delete inFlight[msg.id];
       var text = formatResult(msg);
       delete cmdById[msg.id];
@@ -203,6 +212,89 @@ function clip(s) {
   if (s.length <= MAX_RESULT) return s;
   return s.slice(0, KEEP_HEAD) + '\n\n…（中略）…\n\n' + s.slice(s.length - KEEP_TAIL);
 }
+
+// ---------- attach：向 host 要文件，交给适配器上传 ----------
+function b64ToBytes(b64) {
+  var bin = atob(b64);
+  var len = bin.length;
+  var arr = new Uint8Array(len);
+  for (var i = 0; i < len; i++) arr[i] = bin.charCodeAt(i);
+  return arr;
+}
+
+function attachBlock(block) {
+  if (!block.path) { fillBack('[attach ' + block.id + '] 缺少 path'); return; }
+  if (!adapter || typeof adapter.uploadFile !== 'function') {
+    fillBack('[attach ' + block.id + '] 当前站点适配器不支持上传');
+    return;
+  }
+  markProcessed(block.id);
+  inFlight[block.id] = true;
+  cmdById[block.id] = 'attach: ' + block.path;
+  attachMeta[block.id] = { text: block.text || null, send: !!block.send };
+  console.log('[webai-hands] attach ' + block.id + ' 请求文件 ' + block.path);
+  try {
+    getPort().postMessage({ type: 'read_file', id: block.id, path: block.path });
+  } catch (e) {
+    delete inFlight[block.id]; delete attachMeta[block.id];
+    fillBack('[attach ' + block.id + '] 请求文件失败：' + e.message);
+  }
+}
+
+function onFileArrived(msg) {
+  var meta = attachMeta[msg.id] || {};
+  delete attachMeta[msg.id];
+  delete inFlight[msg.id];
+  var bytes;
+  try { bytes = b64ToBytes(msg.b64); }
+  catch (e) { fillBack('[attach ' + msg.id + '] base64 解码失败：' + e.message); return; }
+  console.log('[webai-hands] 文件已到 ' + msg.name + ' ' + bytes.length + ' 字节');
+  var res;
+  try {
+    res = adapter.uploadFile({ name: msg.name, mime: msg.mime, bytes: bytes });
+  } catch (e) {
+    fillBack('[attach ' + msg.id + '] 适配器上传抛异常：' + e.message);
+    return;
+  }
+  if (!res || !res.ok) {
+    fillBack('[attach ' + msg.id + '] 上传失败：' + ((res && res.why) || '未知'));
+    return;
+  }
+  fillBack('[attach ' + msg.id + '] 已注入文件 ' + msg.name + '（' + bytes.length + ' 字节）');
+  if (meta.text) {
+    try { adapter.fillResult(meta.text); } catch (e) {}
+  }
+  if (meta.send) setTimeout(trySend, 500);
+}
+
+
+// ---------- DOM 探针（只读，本地处理，不经过 host） ----------
+function probeBlock(block) {
+  markProcessed(block.id);
+  if (!block.sel) { fillBack('[probe ' + block.id + '] 缺少 sel 字段'); return; }
+  var nodes;
+  try { nodes = document.querySelectorAll(block.sel); }
+  catch (e) { fillBack('[probe ' + block.id + '] 选择器语法错误：' + e.message); return; }
+  var lines = ['[probe ' + block.id + '] sel=' + block.sel + '  命中 ' + nodes.length + ' 个'];
+  nodes.forEach(function (n, i) {
+    if (i >= 10) { return; }
+    var rect = n.getBoundingClientRect();
+    var cs = getComputedStyle(n);
+    var vis = cs.display !== 'none' && cs.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+    var par = n.parentElement;
+    lines.push('[' + i + '] <' + n.tagName.toLowerCase() + '>');
+    lines.push('    type=' + (n.type || '-') + '  name=' + (n.name || '-') +
+               '  accept=' + (n.accept || '-') + '  multiple=' + !!n.multiple);
+    lines.push('    visible=' + vis + '  size=' + Math.round(rect.width) + 'x' + Math.round(rect.height) +
+               '  class=' + (typeof n.className === 'string' ? n.className.slice(0, 80) : '-'));
+    lines.push('    parent=<' + (par ? par.tagName.toLowerCase() : '-') + '> aria=' +
+               (par && par.getAttribute ? (par.getAttribute('aria-label') || '-') : '-'));
+    lines.push('    html=' + (n.outerHTML || '').slice(0, 200).replace(/\s+/g, ' '));
+  });
+  if (nodes.length > 10) lines.push('  …(只显示前 10 个)');
+  fillBack(lines.join('\n'));
+}
+
 
 function formatDiag(res) {
   var lines = [];
@@ -295,7 +387,7 @@ function scan() {
     var text = el.innerText || el.textContent || '';
     var block = parseBlock(text);
     if (!block || processed[block.id] || inFlight[block.id]) return;
-    if (!block.cmd && incompleteAt[block.id] && Date.now() - incompleteAt[block.id] < 5000) return;
+    if (block.kind !== 'probe' && block.kind !== 'attach' && !block.cmd && incompleteAt[block.id] && Date.now() - incompleteAt[block.id] < 5000) return;
     if (!firstSeenAt[block.id]) {
       firstSeenAt[block.id] = Date.now();
       console.log('[webai-hands] 标记块 ' + block.id + ' 出现了');
@@ -307,7 +399,9 @@ function scan() {
       var again = parseBlock(el.innerText || el.textContent || '');
       if (!again) return;
       console.log('[webai-hands] 标记块 ' + block.id + ' 已稳定，开始执行');
-      execBlock(again);
+      if (again.kind === 'probe') probeBlock(again);
+      else if (again.kind === 'attach') attachBlock(again);
+      else execBlock(again);
     }, STABLE_MS);
   });
 }

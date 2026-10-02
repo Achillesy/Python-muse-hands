@@ -120,3 +120,46 @@ host 会回报 hostname、pid、最近 10 条执行记录、host.log 尾巴。
   - demo 别选默认场景里已有的东西（默认场景自带一个 Cube），要么先删默认物体。
 - 安全：这等于在用户 Blender 里执行任意代码。先只读侦察；
   删除、覆盖文件或大改场景前，先把完整代码摆给用户看，等他明确同意。
+
+## 11. DOM 探针（只读，调试用）
+
+想在页面里查元素、调选择器时，发 probe 块。**它不发给 host，content.js
+在页面本地执行，只读，不点击、不修改页面。** 结果填回输入框。
+
+    {"muse":"probe","id":"p-001","sel":"input[type=file]"}
+
+- sel 是 CSS 选择器（不是 JS，安全）。命中元素会列出：tag、type、name、
+  accept、multiple、可见性、尺寸、class、父元素、HTML 片段（前 200 字）。
+- 最多列前 10 个。
+- 用途：摸清某站点的上传控件、输入框、按钮结构，写适配器前先探。
+
+## 12. 附件上传（attach）
+
+把本机文件作为**对话附件**上传（不是文本），走站点的上传控件。用于：
+"我要读这个 PDF/代码/图片"——比 cat 回传文本更完整，不受 §7 截断影响。
+
+    {"muse":"attach","id":"att-001","path":"/abs/path/x.pdf","text":"说明文字","send":true}
+
+- path：绝对路径（必填）。text：可选，附带的说明，先填进输入框。
+  send：可选，true 则上传后自动发送（否则只填不发送，等你手动）。
+- 流程：host 读文件→base64→扩展重组→content.js 构造 File→
+  适配器塞进页面 input[type=file]→dispatch change→站点自己上传。
+- 已验证：deepseek 端到端通过（2026-10-02，README.md 自动上传成功）。
+  muse 适配器代码与 deepseek 同构，但尚未实跑验证。
+- 安全边界（重要，比 exec 更敏感——文件真的离开本机）：
+  - host 侧拒绝名单：.ssh/、.aws/、.gnupg/、id_rsa、.pem、.key、.env、
+    keychain、Cookies、Login Data、credentials 等，命中即拒。
+  - 单文件上限 25MB，超了拒。base64 分块传（每块 ~375KB 原始数据）。
+  - 文件一旦上传就离开本机，敏感文件别传。
+- 站点限制：deepseek 和 muse 的 accept 白名单**逐字相同**（同一个上传组件），
+  收图片/代码/文档/Office，**不收 .zip/.rar/.7z/.tar/.gz 等压缩包**。
+  被拒是站点策略，任何工具都绕不开。两站的 input[type=file] 都常驻 DOM、
+  隐藏（visible=false, 0x0），可直接塞，不用先点按钮。
+- 注意：适配器 uploadFile 用 DataTransfer 构造 File 塞 input.files——
+  浏览器禁止 JS 给 input 塞路径，只能塞字节（所以必须 host 读→回传）。
+
+## 13. 已知坑（本轮开发踩过）
+
+- 改扩展代码后，**光刷新页面不够**，要去 chrome://extensions 点重载，
+  才会重新注入 content script（行号可判断新旧）。
+- 改 host.py 后要重载扩展让它重启（旧进程还跑旧代码）。

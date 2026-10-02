@@ -10,6 +10,7 @@ const HOST = "com.webai.hands";
 const HOSTNAME_KEY = "mh_local_hostname";
 let nativePort = null;
 const pending = new Map(); // exec id -> 页面 Port
+const fileBuf = new Map(); // read_file id -> 累积的 file_chunk
 
 function setBadge(text, color) {
   chrome.action.setBadgeText({ text });
@@ -30,6 +31,30 @@ function ensureNativePort() {
           obj[HOSTNAME_KEY] = msg.hostname;
           chrome.storage.local.set(obj);
         } catch (e) {}
+      }
+      return;
+    }
+    if (msg.type === "file_chunk") {
+      var buf = fileBuf.get(msg.id);
+      if (!buf) {
+        buf = { name: msg.name, mime: msg.mime, size: msg.size,
+                total: msg.total, chunks: [] };
+        fileBuf.set(msg.id, buf);
+      }
+      buf.chunks[msg.index] = msg.data;
+      var got = 0;
+      for (var k = 0; k < buf.chunks.length; k++) if (buf.chunks[k] != null) got++;
+      if (got === buf.total) {
+        var pg = pending.get(msg.id);
+        fileBuf.delete(msg.id);
+        pending.delete(msg.id);
+        if (pg) {
+          try {
+            pg.postMessage({ type: "file", id: msg.id, name: buf.name,
+                             mime: buf.mime, size: buf.size,
+                             b64: buf.chunks.join("") });
+          } catch (e) {}
+        }
       }
       return;
     }
@@ -57,6 +82,7 @@ function ensureNativePort() {
       } catch (e) {}
     }
     pending.clear();
+    fileBuf.clear();
   });
   return nativePort;
 }
@@ -93,6 +119,21 @@ chrome.runtime.onConnect.addListener((pagePort) => {
             id: msg.id,
             error: "发往本地 host 失败：" + e.message,
           });
+        } catch (err) {}
+        setBadge("✕", "#c62828");
+      }
+    } else if (msg && msg.type === "read_file" && msg.id && msg.path) {
+      try {
+        pending.set(msg.id, pagePort);
+        setBadge("…", "#616161");
+        ensureNativePort().postMessage({
+          type: "read_file", id: msg.id, path: msg.path,
+        });
+      } catch (e) {
+        pending.delete(msg.id);
+        try {
+          pagePort.postMessage({ type: "error", id: msg.id,
+            error: "read_file 发往 host 失败：" + e.message });
         } catch (err) {}
         setBadge("✕", "#c62828");
       }

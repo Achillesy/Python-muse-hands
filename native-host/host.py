@@ -8,7 +8,9 @@
 # allowed_origins）；密码与提权不经过这里——需要提权时由命令本身
 # 触发系统 UAC，host 不接收、不保存任何口令。
 
+import base64
 import json
+import mimetypes
 import os
 import socket
 import struct
@@ -21,6 +23,14 @@ LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "host.log")
 DEFAULT_TIMEOUT = 120  # 秒；M1 先给保守值，截断/超时策略 M3 定型
 HISTORY_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "exec_history.json")
 HISTORY_LIMIT = 500  # 最多保留最近 500 条 id 的执行记录
+MAX_FILE_SIZE = 25 * 1024 * 1024  # 单文件上限 25MB
+CHUNK_B64 = 500 * 1024  # 每块 base64 字符数（原始 ~375KB，留足 1MB 消息余量）
+FILE_DENY = (
+    "/.ssh/", "/.aws/", "/.gnupg/", "/.config/gcloud/",
+    "id_rsa", "id_ed25519", "id_ecdsa", ".pem", ".key", ".p12",
+    "/.env", "credentials", "keychain", "cookies", "login data",
+    "/etc/shadow", "/etc/sudoers", ".netrc", ".pgpass",
+)
 
 
 def log(line):
@@ -154,6 +164,56 @@ def run_exec(msg):
     return res
 
 
+def run_read_file(msg):
+    """读本机文件，base64 分块回传。安全拒绝名单 + 大小上限。"""
+    rid = msg.get("id")
+    path = msg.get("path", "")
+    if not path:
+        return {"type": "error", "id": rid, "error": "缺少 path"}
+    try:
+        real = os.path.realpath(os.path.expanduser(path))
+    except Exception as e:
+        return {"type": "error", "id": rid, "error": "路径解析失败: %r" % (e,)}
+    if not os.path.isfile(real):
+        return {"type": "error", "id": rid, "error": "文件不存在: %s" % real}
+    low = real.lower()
+    for pat in FILE_DENY:
+        if pat in low:
+            log("read_file DENY id=%s path=%r pattern=%s" % (rid, real, pat))
+            return {"type": "error", "id": rid, "error": "拒绝读取敏感路径"}
+    try:
+        size = os.path.getsize(real)
+    except OSError as e:
+        return {"type": "error", "id": rid, "error": "无法读取大小: %r" % (e,)}
+    if size > MAX_FILE_SIZE:
+        return {"type": "error", "id": rid,
+                "error": "文件过大 %d 字节（上限 %d）" % (size, MAX_FILE_SIZE)}
+    try:
+        with open(real, "rb") as f:
+            raw = f.read()
+    except OSError as e:
+        return {"type": "error", "id": rid, "error": "读取失败: %r" % (e,)}
+    b64 = base64.b64encode(raw).decode("ascii")
+    name = os.path.basename(real)
+    mime = mimetypes.guess_type(name)[0] or "application/octet-stream"
+    chunks = [b64[i:i + CHUNK_B64] for i in range(0, len(b64), CHUNK_B64)] or [""]
+    total = len(chunks)
+    out = []
+    for i, ch in enumerate(chunks):
+        out.append({
+            "type": "file_chunk",
+            "id": rid,
+            "name": name,
+            "mime": mime,
+            "size": size,
+            "index": i,
+            "total": total,
+            "data": ch,
+        })
+    log("read_file id=%s path=%r size=%d chunks=%d mime=%s" % (rid, real, size, total, mime))
+    return out
+
+
 def run_diag(msg):
     try:
         tail = []
@@ -193,6 +253,8 @@ def handle(msg):
         return run_exec(msg)
     if t == "diag":
         return run_diag(msg)
+    if t == "read_file":
+        return run_read_file(msg)
     return {"type": "error", "id": msg.get("id"), "error": "unknown type: %r" % (t,)}
 
 
@@ -209,7 +271,12 @@ def main():
         if msg is None:
             break
         try:
-            send_message(handle(msg))
+            res = handle(msg)
+            if isinstance(res, list):
+                for item in res:
+                    send_message(item)
+            else:
+                send_message(res)
         except Exception as e:  # 单条消息出错不能把 host 带走
             log("handle error: %r" % (e,))
             try:
