@@ -7,15 +7,19 @@
 # 2. 把它登记到 Chrome：Windows 写 HKCU 注册表 NativeMessagingHosts，
 #    macOS 放进 Chrome 的 NativeMessagingHosts 目录。
 #
-# 扩展 ID 由 extension/manifest.json 里写死的 key 决定，全程固定，
-# host 白名单只认它一个。
+# 扩展 ID 有两个：开发版由 extension/manifest.json 里写死的 key 决定；
+# 商店版由 Chrome Web Store 分配（2026-10-03 提交审核时拿到）。
+# host 白名单两个都认，开发版和商店版可以同时装、同时用。
 
 import json
 import os
 import sys
 
 HOST_NAME = "com.webai.hands"
-EXTENSION_ID = "aaemlgedddakpgkfoakfmkdiiheplgnl"
+EXTENSION_IDS = [
+    "aaemlgedddakpgkfoakfmkdiiheplgnl",  # 开发版（源码加载已解压的扩展）
+    "pboakanoekehbongkmaeianbkebpfahl",  # Chrome Web Store 版
+]
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -31,7 +35,7 @@ def write_manifest(target_path):
         "description": "webai-hands local host",
         "path": host_launcher(),
         "type": "stdio",
-        "allowed_origins": ["chrome-extension://%s/" % EXTENSION_ID],
+        "allowed_origins": ["chrome-extension://%s/" % eid for eid in EXTENSION_IDS],
     }
     with open(target_path, "w", encoding="utf-8") as f:
         json.dump(manifest, f, indent=2)
@@ -60,7 +64,7 @@ def main():
         return 1
 
     print("host 清单：%s" % manifest_path)
-    print("扩展 ID（已写死在白名单里）：%s" % EXTENSION_ID)
+    print("扩展 ID（已写进白名单）：%s" % ", ".join(EXTENSION_IDS))
     print(
         "下一步：Chrome 打开 chrome://extensions → 开开发者模式 → "
         "加载已解压的扩展程序 → 选 extension 文件夹 → 点工具栏的 "
