@@ -1,52 +1,42 @@
-# Python-muse-hands
+# muse-hands
 
-沐丝的双手。云端大脑（Muse）在聊天里下达命令，用户本地机器上的
-Python 客户端负责接收、执行、回传结果，并记录全过程——恩公只在聊天里
-说话，不再当传话筒。
+云端 AI 的双手：Chrome 扩展在聊天页面里抓取命令块，经 Native Messaging
+交给本机 Python host 执行，结果填回页面。用户只在聊天里说话，不再当传话筒。
 
-## 恩公的计划（2026-10-01 提出，尚在讨论阶段）
+## 架构（三件套）
 
-来自 muse-pipe 本地控制台的试验结论，恩公原话要点：
-
-- 不需要本地聊天对话框：在 Muse app 或浏览器里聊天即可（适用于所有
-  系统），本地网页聊天只是备选。
-- 控制台右栏是很好的启发：**要的是记录云端下达的命令，以及执行的情况**，
-  不需要输入。
-- 真正需要 sudo 命令的时候，云端必须在对话中告诉恩公，恩公执行后给出
-  结果。
-- 所以 muse-hands 可以是一个**完全的 Python 项目**：接收命令、回复结果、
-  记录过程。
-- 唯一可以优化的：包含**一个输入**——填入需要 sudo 这类权限的命令，
-  等待人工执行后返回结果。
-
-**项目当前状态**：计划已立，正在按需求、设计、测试的顺序逐步讨论，
-讨论清楚再动手写代码。已定与未定见 `DESIGN.md`，那里没有定案的东西，
-只有恩公的计划、前提事实和待讨论清单。
-
-## 前提（已存在、已验证的家底）
-
-- VPS 网关与任务队列 `/tasks/*` 已在
-  [FastAPI-muse-pipe](https://github.com/Achillesy/FastAPI-muse-pipe)
-  上线并于 2026-10-01 结案定版；本项目只使用它，不改动它。
-- "云端下令 → 本地以登录 shell 执行 → 结果回传"这条链路已于
-  2026-10-01 在 M1 真机验证跑通（试验品在 muse-pipe 的本地控制台里）；
-  本项目的客户端把这条链路做成纯 Python 的正式版本。
+- `extension/` — Chrome MV3 扩展：内容脚本抓取 `{"muse":"exec",…}` 命令块，
+  去重、心跳，结果填回输入框（默认只填不发）
+- `native-host/` — Python host（`com.muse.hands`）：执行 shell 命令，
+  返回结果头 / cmd / stdout / stderr / exit code / 耗时 / hostname；
+  `install.py` 一键登记 host
+- `probe/` — 油猴探针（早期验证工具，阶段已收尾）
 
 ## 仓库结构
 
 ```
-README.md               本文件：项目主页
-DESIGN.md               恩公的计划、已知前提、待讨论清单（需求/设计/测试）
-docs/discussion-log.md  讨论纪要
-protocol/task-queue.md  网关任务队列协议现状（给实现者看的）
-client/                 客户端（旧 Hermes 草稿 local_client.py 保留作
-                        历史参考；M1 正式客户端入口拟按系统命名为
-                        muse_macos.py，讨论定案后开工）
+README.md               本文件
+DESIGN.md               设计文档：§6 为 2026-10-01 拍板的正式版定稿（当前实现依据）；
+                        §1–§5 为讨论阶段存档，只看§6 也能了解全貌
+docs/first-install.md   首次安装与验收（Windows/Mac）
+docs/discussion-log.md  逐日讨论纪要
+protocol/task-queue.md  旧网关任务队列协议（muse-pipe 时代遗留，仅参考）
+client/                 旧长轮询客户端（muse-pipe 时代遗留，仅参考）
 ```
+
+## 当前进展（2026-10-02）
+
+- M0 设计定稿、M1 host 打通、M2 端到端、M3 结果格式：已实现
+- M4 安全加固（hostname 路由、扩展 ID 白名单、急停、diag 自检等）：设计中
+- M5 真机验收（测试案例 001）：待排期
+- 分期细节见 `DESIGN.md` §6.4
 
 ## 与 muse-pipe 的关系
 
-- `FastAPI-muse-pipe` 是已结案的网关项目：网关与任务队列住在那儿，
-  只维护、不扩功能。
-- 本仓库是它的后续演进：纯 Python 本地客户端。网关协议照
-  `protocol/task-queue.md` 对接。
+muse-pipe（VPS 网关 + 长轮询）已于 2026-10-01 按当前状态结案退役；
+muse-hands 是它的继任者，走浏览器传输路线，不依赖网关。
+
+## 安全说明
+
+- host 不监听任何网络端口，只跟扩展 ID 白名单里的扩展说话
+- host 不接收、不保存、不代输密码；提权走系统管理员弹窗，由人亲手确认

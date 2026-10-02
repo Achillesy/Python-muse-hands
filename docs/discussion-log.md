@@ -458,3 +458,329 @@ muse-python 之名重启。
 
 结论：VPS 网关 + 多系统本地客户端，恩公彻底出循环。
 他只下一次命令，剩下的链路自己转：我→VPS→本地客户端→Hermes→VPS→我→他。
+
+## 2026-10-02 04:36 M1 首条真 exec：卸载 Mac 版 Muse app（m1-uninstall-recon-001 / m1-uninstall-app-001 / m1-uninstall-scan-001）
+
+- 背景：恩公觉得 Mac app 对控制电脑没帮助、功能不比网页版多，决定卸载，
+  顺手拿它当 M1 桥的首个真活（含 sudo 行为观察）。
+- recon（只读）：`/Applications/Muse.app` 存在；`/Applications` 为
+  `drwxrwxr-x root admin`，组可写，无需 sudo；`sudo -n true` →
+  `sudo: a password is required`，exit=1——host 无终端，sudo 当场失败，
+  不挂起、不弹密码框。结论：要 sudo 的活在桥侧只能 fail-closed，
+  得他亲手来（host 不收密码是硬约束，DESIGN 6.2 已有）。
+- 删除：`rm -rf /Applications/Muse.app`，exit=0，复查 confirmed gone。
+- 残留扫描：`~/Library/{Application Support,Preferences,Caches,Logs}` 下
+  无 Muse* 残留，收工。
+- 附带验证：首条真 exec 的 result 回来后，工具栏徽标出现 ✓——解释了
+  04:31 恩公问的"为什么 M1 没有 Windows 下那个打勾"（popup 的测通桥
+  从不打徽标，徽标只在 result/error 时由 background 打）。
+
+## 2026-10-02 04:45 sudo 方案拍板：选 C（osascript 管理员弹窗）
+
+- 恩公原话要点：弹窗最好，无人值守时卡住，sudo 须经人同意，
+  免 AI 搞破坏；跑通后可能接其它在线 AI，权限必须在人手里。
+- A（免密名单）/B（亲手跑）落选；注记 A 可与 C 叠加（日后若有
+  无人值守固定提权脚本，A 管极小名单、C 管其余）。
+- DESIGN §6.8 已落定；待办"图标墙"项执行路径更新为 C。
+
+## 2026-10-02 04:53 m1-iconwall-ident-001 失踪排查
+
+- 现象：ident 块 6 分钟无回音。恩公按两步排查：① popup 测通桥 OK；
+  ② host.log 显示 04:41:57 recon-001 是最后一条 exec，ident-001 从未
+  到达 host，之后只有 04:50 的 popup ping 短连接。
+- 判读：扩展↔host 健康，断点在"页面→扩展"段（内容脚本未抓到/
+  未递出该块）。STABLE_MS=1000ms、host 无杂散 print，排除"慢"与
+  协议错位。偶发抖动可能性大，决定换新 id 重发一次。
+- 恩公提出：普通用户贴日志太麻烦，应加 skill/机制让他说"没反应"
+  时云端自主诊断。采纳为设计意向（见 DESIGN §6.9）：协议加 `diag`
+  自检消息 + triage runbook skill。诚实边界：diag 走同一条前向路，
+  前向断时 diag 也会消失，那种情况靠 popup ping 与徽标状态。
+
+## 2026-10-02 04:54 /Applications/ItamiBen.app 鉴定：真 App，保留
+
+- ident-002 返回：目录属 achilles:admin，Bundle ID
+  com.achillesy.itamiben，自带 ItamiBen.icns，非 symlink。
+  结论：恩公自己的番茄钟成品，真应用，不算图标墙僵尸，
+  不排除。昨天 13 条名单里没有它，今日 mdfind 新翻出，
+  按今日证据定案。
+- 排除名单收敛为 6 个父目录（覆盖 13 条僵尸）：UnrealEngine
+  SelfUpdateStaging/Install、redhat.java、ItamiBen.App 源码目录、
+  ItamiTimer.App 源码目录、miniconda3/pkgs、dotnet/shared。
+- 执行走 §6.8 的 C 路径：云端先在对话摆出提权脚本全文与确切
+  命令（本条即预告），再下单块执行；osascript 弹系统密码框，
+  恩公输密码；脚本先备份 plist 到 /tmp，写前打印顶层 keys，
+  Exclusions 缺失则新建（GUI 也是如此行为）。
+
+## 2026-10-02 04:55 C 路径首次实战：撞 TCC 墙
+
+- m1-iconwall-apply-001：osascript 弹窗提权执行，python 以 root
+  读 VolumeConfiguration.plist 得 PermissionError EPERM(1)。
+- 判读：EPERM 非 EACCES，即 TCC（Transparency, Consent, and
+  Control）拦截；macOS 上 root 也不 bypass TCC。昨天"写 plist"
+  结论未经实测，首次实测即见墙。
+- 下一步：无密码诊断（用户态能否读该文件、目录 flags、csrutil
+  status）确认是 TCC 位置保护； remedies：①恩公亲手拖 6 文件夹
+  进"系统设置→Spotlight→搜索隐私"（推荐，一次性零风险）；
+  ②给 /usr/bin/python3 开完全磁盘访问权限再跑脚本（口子大，
+  所有 python 脚本获全盘权限，不推荐）。
+
+## 2026-10-02 04:57 诊断确认：TCC/SIP 级保护，直写此路不通
+
+- diag-001：目录 `drwx--x--- root:_mds_stores`；用户读 EACCES，
+  提权 root 读 EPERM；SIP enabled。Unix 权限 + MAC 双层保护，
+  VolumeConfiguration.plist 直写路线放弃。
+- 决议待恩公二选一：①亲手拖 6 父目录进"系统设置→Spotlight→
+  搜索隐私"（推荐，一次性零风险，Apple 亲儿子通道）；②给
+  /usr/bin/python3 开"完全磁盘访问权限"再跑脚本（口子大：
+  此后所有 python3 脚本获全盘权限，不推荐）。
+- 无论哪条，复查验收不变：mdfind 枚举 13 条僵尸归零（mds 清
+  索引需一两分钟），恩公看图标墙终验。
+
+## 2026-10-02 05:0x 恩公误删 ItamiTimer.App 源码目录（已指导恢复）
+
+- 恩公把 ~/Workspace_03Frozen/.../src/ItamiTimer.App 移入废纸篓，
+  误以为删目录可去僵尸图标。已澄清：排除索引≠删除，6 目录
+  一个不能删。
+- trashcheck-001：废纸篓完好（TRASH: yes）；git status 全 ` D`
+  未 stage，仓库对象完好。指导：废纸篓右键"放回原处"（比
+  git checkout 更安全——保留未提交修改），放回后 git status
+  应干净。
+
+## 2026-10-02 05:04 恩公暂停图标墙清理，追问 ItamiTimer.App 之"大"
+
+- 恩公在 TCC 墙 + 误删恢复后叫停图标墙任务，问：ItamiTimer.App
+  这么大的东西，怎么会是源码？
+- 待实测：du 看 bin/obj 构建产物占比。预期解释：它是 Avalonia
+  .NET 项目目录（.cs/.axaml/.csproj 为源码），".App" 后缀是
+  .NET 项目命名惯例（ItamiBen.App 同），macOS/Spotlight 误认作
+  应用 bundle；体积大在 bin/obj 编译产物（gitignored，可删可
+  重建）。
+
+## 2026-10-02 05:05 废纸篓 EPERM 异象
+
+- size-001：~/.Trash/ItamiTimer.App 的 du/ls 报 Operation not
+  permitted，但 ls -d（stat 目录本身）正常。stat OK + readdir
+  EPERM 的不对称，待查（TCC？flags？）。
+- 不影响恢复：Finder 右键"放回原处"不走 shell。
+- 用 ItamiBen.App（同构，不在废纸篓）做体积代理，验证
+  bin/obj 占大头的假设。
+
+## 2026-10-02 05:06 "大"与 EPERM 双定案
+
+- 体积：兄弟项目 ItamiBen.App（同构）597M，其中 bin/ 596M、
+  obj/ 884K——"大"几乎全是 dotnet build 编译产物，源码本身
+  约 1M。git status 无 untracked 条目，bin/obj 被 gitignore，
+  删了 dotnet build 可重建。
+- EPERM：~/.Trash 整个目录被 TCC 保护，无 FDA 进程 ls 即
+  EPERM；但按明确路径 stat（如 ls -d）可行。今晚第二堵 TCC
+  墙（第一堵是 .Spotlight-V100）。Finder 不受影响，"放回原处"
+  照常。
+
+## 2026-10-02 05:08 ItamiTimer.App 已放回；新问题：.App.app 体积差与 git 追踪
+
+- 恩公放回源码目录，图标墙僵尸重现（预期，暂停中不动）。
+- 新问：ItamiTimer.App.app 仅 407K，ItamiBen.App.app 巨大，
+  为何差这么多？且 .app 文件是否进了 git？
+- 待实测：find 两仓库内 *.App.app 位置与体积；git ls-files
+  确认是否被追踪。假设：self-contained publish（含 runtime，
+  上百 MB）vs framework-dependent 本地 build。
+
+## 2026-10-02 05:09 .App.app 乌龙：并无此文件
+
+- appapp-002：全盘 find 无任何 `*.App.app`（双后缀）文件；
+  mdfind -name "ItamiTimer.App.app" 命中纯属模糊匹配到源码目录。
+- 恩公说的 407K 实为源码目录 ItamiTimer.App 本身（无 bin/）；
+  "巨大"的实为 /Applications/ItamiBen.app（真安装包）。
+  待 003 确认两者体积与 self-contained。
+- git 双仓库 ls-files 均为 0，无 .app 入库，虚惊。
+
+## 2026-10-02 05:10 .App 体积三件套定案
+
+- ItamiTimer.App（源码目录，无 bin/ 未编过）：472K——恩公
+  说的 407K 即它。
+- ItamiBen.App（源码目录，编过）：597M，bin/ 占 596M。
+- /Applications/ItamiBen.app（真安装包）：32M，
+  framework-dependent（无 libcoreclr.dylib，不自带 runtime；
+  32M 主体是 Avalonia DLL）。与 README"macOS 用户自装
+  .NET Runtime"一致。
+- "一大一小"系跨类比较：纯源码 vs 构建产物 vs 安装包。
+  命名（.App 源码目录 vs .app 应用包）是全部 confusion 之源。
+
+## 2026-10-02 05:11 恩公问：bin/obj 不在 git，删了无影响？
+
+- 需先实测 git check-ignore 确认 bin/obj 真被忽略（此前由
+  截断的 git status 推断，不严谨），并确认 ItamiTimer 恢复后
+  git status 已干净。
+- 答：bin/obj 可删（dotnet build 重建）；源码目录不可删
+  （git 只保已提交，未提交改动会丢；且删目录不解决图标墙）。
+
+## 2026-10-02 05:12 删除问题定案：对一半
+
+- bin/obj：.gitignore 第 24/25 行明确忽略，可删，dotnet
+  build 重建。ItamiBen.App 删后应回落到 ~1M。
+- 源码目录本身：不可删。git 只保已提交；且删目录不治图标墙
+  （条目在索引里，目录删了还在——Books 已验证）。
+- ItamiTimer git status 仅剩 `?? .metadata_never_index`，系此前
+  图标墙排查时 touch 的，0 字节无害，已告知恩公可删可留。
+
+## 2026-10-02 05:12 bin/obj 清理完成
+
+- 恩公执行 m1-clean-bin-001：ItamiBen.App 由 597M → 444K。
+  现两个 .App 源码目录均为纯源码体积（444K / 472K）。
+- 图标墙任务仍暂停，重启等恩公一句话。
+
+## 2026-10-02 05:15 恩公误读 grep，险些删源码
+
+- 恩公将 `git ls-files | grep "App\.app"` = 0 误读为
+  "ItamiBen.App 源码目录未进版本管理"，问保留价值何在，
+  意欲删除。
+- 纠正：该 grep 只查 "*..App.app" 双后缀文件；源码目录
+  src/ItamiBen.App/ 下 .cs 等文件是被追踪的（待 001 实测
+  确认）。它是项目源码本体，删不得。
+- 教训：给非技术结论配 grep 时，须讲清 pattern 到底在匹配
+  什么。
+
+## 2026-10-02 05:16 源码追踪确认：37 文件
+
+- tracked-001：git ls-files src/ItamiBen.App = 37 个文件
+  （.cs/.axaml/.csproj 全在）。源码目录是项目本体，删不得。
+- 恩公接受纠正。命名教训：.NET 的 `.App` 项目后缀是今晚
+  一连串 confusion（僵尸图标、407K 之问、误删惊魂）的总根源。
+
+## 2026-10-02 05:18 恩公评估删除 /Users/Shared/UnrealEngine
+
+- 恩公称早已彻底删除 UE，问能否删 /Users/Shared/UnrealEngine
+  （含 Launcher/SelfUpdateStaging/Install 僵尸源）。
+- 评估维度：目录内容与体积、Epic Launcher 是否还在
+  /Applications、有无运行中进程、有无 launchd 引用。
+- 注意：删目录后 Spotlight 条目应随 FSEvents 删除事件被 mds
+  清除（与 .metadata_never_index 不同路），有望顺带清掉
+  Epic 僵尸图标。图标墙主任务仍暂停，此为单项评估。
+
+## 2026-10-02 05:19 /Users/Shared/UnrealEngine 删除评估：可删，零风险
+
+- 实测：整棵树 0B，全是空目录壳；Install 下仅 .metadata_never_index
+  （此前排查时我 touch 的）+ 空的 Epic Games Launcher.app 目录。
+- /Applications 无 Epic 系应用；无运行中进程；无 launchd 引用。
+- 结论：可删。删后 Spotlight 应随 FSEvents 删除事件清除条目，
+  Epic 白图标有望自行从图标墙消失（等一两分钟，恩公自验）。
+  6 个搜索隐私候选减至 5 个（此项）。
+
+## 2026-10-02 05:20 /Users/Shared/UnrealEngine 已删
+
+- 恩公执行 m1-ue-del-002，目录已不存在。
+- 待验证：Spotlight 条目清除后 Epic 白图标从图标墙消失
+  （给 verify 块 mdfind -name "Epic Games Launcher.app"）。
+
+## 2026-10-02 05:21 Epic 索引清除确认
+
+- mdfind -name "Epic Games Launcher.app" 返回空——Spotlight
+  索引已清除。图标墙上的 Epic 白图标应随后消失，待恩公肉眼确认。
+- 这是 13 条僵尸里第一条真正被消灭的（靠删除空目录壳，
+  非搜索隐私路线）。
+
+## 2026-10-02 05:2x 恩公要继续：muse-probe-p001
+
+- 恩公表示今晚不收工，给出探针命令 `echo muse-probe-p001`，
+  预期输出 `muse-probe-p001`。按桥命令流程发块执行。
+
+## 2026-10-02 05:2x muse-probe-p001 通过
+
+- 桥执行 `echo muse-probe-p001`，回执 `muse-probe-p001`，
+  与预期一致。桥链路健康。
+
+## 2026-10-02 05:23 恩公明确新路线：不屏蔽，逐个评估删除
+
+- 恩公：6 个目录不做搜索隐私屏蔽；ItamiBen/ItamiTimer 源码
+  目录决定保留；UnrealEngine 已删。
+- "下一个"指 redhat.java；要我把剩下三个（redhat.java、
+  miniconda3/pkgs、dotnet/shared）列出来逐个评估能否删除。
+- 评估中：redhat.java=VSCode Java 插件缓存？、pkgs=conda
+  包缓存（conda clean 可清）、dotnet/shared=.NET 运行时
+  （删了 dotnet 即废，预期保留）。
+
+## 2026-10-02 05:2x 剩下三目录评估完成
+
+- redhat.java（44M）：VS Code Red Hat Java 插件卸载残留，
+  插件已不在（~/.vscode/extensions 无）。僵尸真身：
+  org.eclipse.equinox.app——Eclipse OSGi 目录名以 .app 结尾，
+  被 Spotlight 当应用索引（同 .App 命名陷阱）。verdict：删。
+- miniconda3/pkgs（1.2G，317 项）：conda 包缓存。
+  verdict：conda clean --all 官方清理，不直接 rm。
+- dotnet/shared（111M）：.NET 10 运行时（10.0.12，
+  AspNetCore+NETCore）。ItamiBen.app 为 framework-dependent，
+  删了 dotnet 全废。verdict：保留。
+
+## 2026-10-02 05:2x redhat.java 已删
+
+- 恩公执行 m1-del-redhatjava-001，44M 残留已删。
+- 待验证：mdfind -name "org.eclipse.equinox.app" 确认索引清除。
+
+## 2026-10-02 05:2x 逐个删除路线全部执行完毕
+
+- mdfind -name "org.eclipse.equinox.app" 返回空：redhat.java
+  僵尸索引已清。
+- conda clean --all -y：清掉 94 个 tarball（103.5MB）+
+  104 个包（489.4MB），合计约 593MB；pkgs 剩约 600MB
+  在用包（conda clean 只清闲置，行为正确）。
+- 6 目录全部定案：删 2（UnrealEngine 0B、redhat.java 44M）、
+  清 1（pkgs ~593MB）、保留 3（ItamiBen/ItamiTimer 源码已清
+  bin/obj 各 ~450K、dotnet/shared 111M .NET 运行时）。
+- 图标墙待恩公肉眼确认；搜索隐私路线恩公已否决，不再做。
+
+## 2026-10-02 05:28 恩公问 terminfo/69 下 iterm/iterm2 能否删除
+
+- 路径：~/miniconda3/pkgs/ncurses-6.6-h2f07c83_0/share/terminfo/69，
+  恩公称其中 iterm/iterm2 及"快捷方式"是图标墙老牛皮癣。
+- 先验：terminfo 是终端能力数据库（0x69='i'），iterm/iterm2
+  为终端类型定义文件，非 .app，不应被 Spotlight 索引为应用。
+  须实测：ls 看内容；mdfind -name "iTerm.app" 找僵尸真身。
+- 若真身另有所属，terminfo 文件删了也治不了图标墙，反而可能
+  影响 conda ncurses 的终端识别。
+
+## 2026-10-02 05:29 terminfo/69 的 iTerm.app 真身
+
+- 实测：iTerm.app（1857B）、iTerm2.app（2740B）是 ncurses
+  terminfo 数据文件（iTerm2 的 TERM 值上游就叫 iTerm.app，
+  非 macOS 应用）；iterm/iterm2 是别名 symlink（恩公说的
+  "快捷方式"）。
+- 关键：目录内已有 .metadata_never_index（10-01，非今晚放的），
+  mdfind -name "iTerm.app"/"iterm.app" 均返回空——Spotlight
+  索引里已无条目。
+- verdict：技术上可删（几KB数据文件），但无必要且治不了图标墙；
+  若图标墙仍见 iTerm 僵尸，应为 Launchpad 自身陈旧缓存，
+  非 Spotlight 问题。已告知恩公。
+
+## 2026-10-02 05:30 图标墙清理完工（恩公确认）
+
+- 恩公宣布：清理图标墙这件事情算完工。
+- 今晚总战绩：删 2（UnrealEngine 0B、redhat.java 44M，
+  Epic/equinox 索引均已清）、清 1（pkgs conda clean 约 593MB）、
+  保留 3（ItamiBen/ItamiTimer 源码 bin/obj 已清、dotnet 运行时）；
+  terminfo iTerm.app 系数据文件、索引本无条目，不动；
+  搜索隐私屏蔽路线恩公否决，未执行。
+- 命名陷阱三连：.App 源码目录、org.eclipse.equinox.app、
+  terminfo iTerm.app——皆因名字以 .app 结尾被 Spotlight
+  当应用索引。新项目避免此命名。
+
+## 2026-10-02 05:34 额度见底，M4 延至重置后
+
+- subscription-status：无订阅（免费版），本周免费额度已用 93%，
+  剩约 7%；10-03 01:46（CST）重置。
+- 恩公决定：hostname 路由规则加入代办，今晚不再继续做。
+- hostname 路由完整规则（DESIGN §6.7 全文）已于 05:34 呈报，
+  待恩公拍板——拍板即 M4 开工门禁；M4 实现排到额度重置后。
+
+## 2026-10-02 08:55 开源前私密信息审查
+
+- 恩公打算把 muse-hands 从 private 转 public，委托审查。
+- 结果：18 个跟踪文件；34 个 commit 全历史扫描——无任何
+  token/password/API key 实值；.pem 从未进过仓库（在
+  ~/workspace/muse-hands-keys/，0600），.gitignore 覆盖
+  *.pem/.env/.vscode_/__pycache__/本地 manifest。
+- 个人信息（低风险）：achillesy@msn.com×2（discussion-log，
+  未提交）；内网 192.168.31.20/.10；主机名
+  Codex-Win11/M1-Mac-mini；/Users/achilles；commit 作者
+  Muse <muse@reinhand.com>；扩展 ID（公开标识符，非秘密）。
+- 结论：无硬伤，可以转 public；唯一动作项是 2 处 msn 邮箱
+  去留由恩公定。未代执行翻转，等他确认。
