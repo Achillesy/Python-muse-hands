@@ -12,3 +12,4 @@ venv/
 *.pem
 native-host/com.webai.hands.json
 native-host/exec_history.json
+local-archive/

@@ -1,42 +1,105 @@
 # webai-hands
 
-云端 AI 的双手：Chrome 扩展在聊天页面里抓取命令块，经 Native Messaging
-交给本机 Python host 执行，结果填回页面。用户只在聊天里说话，不再当传话筒。
+> 给 Web AI 一双手：在聊天页面里下达命令，你的电脑执行。
 
-## 架构（三件套）
+## 这是什么
 
-- `extension/` — Chrome MV3 扩展：内容脚本抓取 `{"muse":"exec",…}` 命令块，
-  去重、心跳，结果填回输入框（默认只填不发）
-- `native-host/` — Python host（`com.webai.hands`）：执行 shell 命令，
-  返回结果头 / cmd / stdout / stderr / exit code / 耗时 / hostname；
-  `install.py` 一键登记 host
-- `probe/` — 油猴探针（早期验证工具，阶段已收尾）
+你在 DeepSeek / ChatGPT / Claude 等网页版聊天里说话，AI 输出一条约定格式的命令块，
+浏览器扩展抓到它，通过 Chrome 官方的 Native Messaging 通道交给本机的 Python host 执行，
+再把结果填回聊天框 —— 全程不需要你复制粘贴、不需要你切窗口当"传话筒"。
 
-## 仓库结构
+**一句话**：Web AI 的大脑 + 你的电脑的手 = 完整智能体。
 
-```
-README.md               本文件
-DESIGN.md               设计文档：§6 为 2026-10-01 拍板的正式版定稿（当前实现依据）；
-                        §1–§5 为讨论阶段存档，只看§6 也能了解全貌
-docs/first-install.md   首次安装与验收（Windows/Mac）
-docs/discussion-log.md  逐日讨论纪要
-protocol/task-queue.md  旧网关任务队列协议（muse-pipe 时代遗留，仅参考）
-client/                 旧长轮询客户端（muse-pipe 时代遗留，仅参考）
-```
+## 支持的 Web AI
 
-## 当前进展（2026-10-02）
+| 站点 | 状态 | 备注 |
+|---|---|---|
+| `chat.deepseek.com` | ✅ 已验证 | 自动发送已通 |
+| `muse.ai` | ✅ 已验证 | |
+| `chatgpt.com` | 🚧 待调试 | 欢迎贡献适配器 |
+| 其它 | 🚧 欢迎提交 | 见 `FOR-AI.md` |
 
-- M0 设计定稿、M1 host 打通、M2 端到端、M3 结果格式：已实现
-- M4 安全加固（hostname 路由、扩展 ID 白名单、急停、diag 自检等）：设计中
-- M5 真机验收（测试案例 001）：待排期
-- 分期细节见 `DESIGN.md` §6.4
+## 两条使用路径
 
-## 与 muse-pipe 的关系
+### 路径 A：直接用（推荐给普通用户）
 
-muse-pipe（VPS 网关 + 长轮询）已于 2026-10-01 按当前状态结案退役；
-webai-hands 是它的继任者，走浏览器传输路线，不依赖网关。
+1. **装扩展**：`chrome://extensions` → 开开发者模式 → 加载已解压的 `extension/` 目录
+2. **装 host**：
+   - macOS：`python3 native-host/install.py`
+   - Windows：双击 `native-host/install_windows.bat`
+3. **验证**：点扩展图标 → 「测通桥」→ 显示"已连接 <机器名>"即通
 
-## 安全说明
+详细步骤见 [`docs/install.md`](docs/install.md)。
 
-- host 不监听任何网络端口，只跟扩展 ID 白名单里的扩展说话
-- host 不接收、不保存、不代输密码；提权走系统管理员弹窗，由人亲手确认
+### 路径 B：自己调试（推荐给开发者和其它 AI）
+
+这个项目的设计哲学是**开放的、可扩展的**。你可以：
+
+- 用你偏好的 AI 助手，让它读 [`FOR-AI.md`](FOR-AI.md)，帮你为自己的 WebAI 写适配器
+- 参考 `extension/adapters/muse.js`（30 行）和 `extension/adapters/deepseek.js`（60 行）
+- 加一个新站点 = 写一个适配器文件 + 在 `manifest.json` 注册，核心层零改动
+
+详细的"给 AI 的调试指引"见 [`FOR-AI.md`](FOR-AI.md)。
+
+## 架构
+    网页 AI 对话  -->  Chrome 扩展  -->  Python host  -->  本机 shell
+     你在这里说话      抓命令块          执行命令          真执行
+                      填回结果          返回结果
+                              ^
+                     Native Messaging（本机 stdio，无网络端口）
+
+三个核心组件：
+
+- extension/ — Chrome MV3 扩展：内容脚本抓取 muse-exec 命令块，去重、心跳、结果填回、自动发送
+- extension/adapters/ — 每站点一份 DOM 适配器（30-60 行），定义该站点里代码块、输入框、发送按钮的位置
+- native-host/ — Python host（host 名 com.webai.hands）：执行 shell，返回 stdout/stderr/exit_code/耗时/hostname
+
+## 安全边界
+
+- host 不监听任何网络端口，只跟白名单里的扩展 ID 说话
+- host 不接收、不保存、不代输密码；提权走系统弹窗（macOS osascript / Windows UAC），由人亲手确认
+- 命令块里可以指定 host 字段做多机路由，不匹配的机器静默忽略（fail-closed）
+- 已执行的 id 记在 host 侧 exec_history.json，页面刷新、扩展重装都不会重放历史命令
+
+## 命令块格式
+
+AI 在对话里输出一个代码块，语言标记为 muse-exec，块里是 JSON。
+单行或两行都支持。
+
+单行（JSON 里带 cmd 字段）：
+
+    {"muse":"exec","id":"unique-id-001","cmd":"echo hello"}
+
+两行（JSON 首行，命令正文从第二行起）：
+
+    {"muse":"exec","id":"unique-id-002"}
+    ls -la ~/Downloads
+
+可选字段：
+
+- host: "机器名" — 只让指定机器执行（省略 = 所有装了扩展的机器都执行）
+- shell: "zsh" — 指定 shell（默认：mac 走 zsh，Windows 走 PowerShell）
+- timeout: 60 — 秒数（默认 120）
+
+## 自我诊断
+
+如果你觉得"没反应"，让 AI 助手发一个诊断块：
+
+    {"muse":"exec","id":"diag-001","cmd":"__diag__"}
+
+host 会回报本机 hostname、pid、最近执行历史、日志尾巴。AI 据此判断断在哪一段。
+
+## 文档
+
+- FOR-AI.md — 给其它 AI 的调试指引（想让 AI 帮忙，从这里开始）
+- DESIGN.md — 架构设计与技术决策
+- docs/install.md — 面向普通用户的安装步骤
+
+## 许可
+
+MIT
+
+## 贡献
+
+欢迎为你的 WebAI 写适配器、提 PR、开 issue 报告哪个站点不通。
+加新站点 = 一个 30 行的 extension/adapters/xxx.js。
