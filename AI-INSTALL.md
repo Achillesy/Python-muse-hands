@@ -70,3 +70,11 @@ chrome://extensions 点重载 → 再刷新所有已打开的 chat 页面。两�
 
 ### 5.4 项目改名 / 仓库搬家后
 注册表还指着旧路径，Chrome 静默失败。重跑 install.py，清理旧注册表项，重载扩展，刷新页面。
+
+### 5.5 PowerShell 把 git push 的正常输出误报为错误
+
+现象：git push 报红色 NativeCommandError，但实际推送成功（远端引用已更新）。
+
+根因：git 把进度写到 stderr，PowerShell 对原生命令的 stderr 一律包成 error record，exit code 为 0 也显示红字。
+
+判读：看实际内容（x..y main -> main 即成功），别被红字吓到。或加 2>&1 合并流。
