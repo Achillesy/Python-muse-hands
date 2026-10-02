@@ -1,4 +1,4 @@
-# webai-hands
+﻿# webai-hands
 
 [English](README.md)
 
@@ -6,11 +6,52 @@
 
 ## 这是什么
 
-打开**免费**的网页 AI（比如 DeepSeek 免费版），用说话的方式告诉它你想让电脑做什么。AI 写一条命令，浏览器小扩展抓到它，电脑上的小程序执行它，结果直接回到聊天框里。
+打开**免费的**网页 AI（DeepSeek、Muse），用这个扩展让它操作你的电脑。
 
-不用复制粘贴，不用来回切窗口当"传话筒"，不用买付费 API。
+网页 AI 不再只是一个对话框——你提问、它回答，然后你自己动手搬运。
+现在它有了双手：你说要做什么，它替你做完。
 
-**一句话**：Web AI 的大脑 + 你的电脑的手 = 完整智能体，还免费。
+和别的需要装到电脑上的 AI 伙伴不同，网页 AI 不需要买 API。
+你不是雇了个帮手，你是给免费的 AI 老师安上了一双干活的手。
+
+**一句话**：Web AI 的大脑 + 你电脑的双手 = 免费智能体。
+
+## 快速开始
+
+**第 1 步——拿到项目**
+
+克隆，或从 GitHub 下载 ZIP：
+
+    git clone https://github.com/Achillesy/Python-webai-hands.git
+
+**第 2 步——打开网页 AI**
+
+去 [chat.deepseek.com](https://chat.deepseek.com) 或 [muse.ai](https://muse.ai)，免费版都能用。
+
+**第 3 步——把安装手册交给它**
+
+把 **`AI-INSTALL.md`** 上传进对话（拖文件进去，或直接粘内容）。
+AI 会带你装好扩展和本机小程序，再验证能不能用。
+
+之后直接说话就行：
+
+> "把我 Downloads 里最大的 10 个文件列出来。"
+
+## 日常使用
+
+AI 需要把手册放在上下文里。给哪一份，看站点：
+
+| 站点 | 怎么把手册交给 AI |
+|---|---|
+| **DeepSeek**（没有长期记忆） | 每做一件新事 → 新开对话 → 上传 `AI-GUIDE.md`。每个新对话都要再传一次。 |
+| **Muse**（有长期记忆） | 上传一次 `AI-GUIDE.md` 就记住了——或者贴 GitHub 链接，让它自己读项目。 |
+
+给 AI 哪一份：
+
+- 第一次 / 出问题 → `AI-INSTALL.md`
+- 日常操作 → `AI-GUIDE.md`
+- 操作 Blender → `AI-BLENDER.md`
+- 改扩展 / 加新站点 → `AI-EVOLUTION.md`
 
 ## 能做什么
 
@@ -18,65 +59,14 @@
 
 - 整理文件、搜磁盘、批量改照片名
 - Git：status、pull、commit、push——不用碰命令行
-- **操作 Blender**：建模、挪东西、渲染——用嘴说就行
-  （[已实测](examples/blender/)：Blender 5.2.2 + 官方 Blender MCP 插件）
-- ……其它你能说清楚的事都行
-
-## 支持的 AI 站点
-
-| 站点 | 状态 |
-|---|---|
-| `chat.deepseek.com` | ✅ 已验证（免费版可用） |
-| `muse.ai` | ✅ 已验证 |
-
-其它站点加个小适配器就行，见 `FOR-AI.md`。
-
-## 安装（约 5 分钟）
-
-需要：Chrome（或其它 Chromium 内核浏览器）+ 电脑上有 Python 3。
-
-**第 1 步——装扩展**
-
-1. 浏览器打开 `chrome://extensions`
-2. 右上角打开**开发者模式**
-3. 点**加载已解压的扩展程序**，选中本项目的 `extension/` 目录
-
-**第 2 步——装本机小程序**
-
-- macOS：打开终端，运行 `python3 native-host/install.py`
-- Windows：双击 `native-host/install_windows.bat`
-
-**第 3 步——验证**
-
-1. 点工具栏里的扩展图标 → **测通桥**
-2. 显示"已连接 \<你的机器名\>"——通了
-
-详细图文步骤：[`docs/first-install.md`](docs/first-install.md)。
-
-## 试一下
-
-在浏览器里打开 DeepSeek（或 Muse），把 [`AI-GUIDE.md`](AI-GUIDE.md) 粘贴进对话——这是份简短手册，教会任何 AI 怎么用 webai-hands。然后直接说话：
-
-> "把我 Downloads 里最大的 10 个文件列出来。"
-
-AI 会发一条命令块，扩展执行它，答案回到聊天框里。
-
-## 把文件发给 AI
-
-AI 可以直接从你电脑上取文件，作为**对话附件**传上去——不用你手动上传。直接说：
-
-> "帮我总结这个 PDF：/Users/me/Documents/report.pdf"
-
-AI 经桥拿到文件，变成真正的聊天附件。安全阀：敏感路径（SSH 密钥、浏览器 cookie、`.env`……）拒绝读取，单文件上限 25MB，文件不会悄悄离机——一定是 AI 在对话里向你索取。
+- 操作 Blender：建模、挪东西、渲染
+- 把文件（PDF、代码、图片）作为真正的聊天附件发给 AI
 
 ## 给开发者
 
-- `extension/` — Chrome MV3 扩展：抓命令块、回填结果
-- `extension/adapters/` — 每个站点一个小文件（约 30–60 行）
-- `native-host/` — 执行命令的 Python 程序（不监听网络端口，只跟本扩展说话）
-- `examples/blender/` — 直连 Blender 的 MCP socket，不需要 MCP 客户端
-
-加一个新站点 = 写一个适配器文件 + 在 `manifest.json` 加一行。见 `FOR-AI.md`。
+项目很小：一个 Chrome MV3 扩展 + 一个 Python host。加一个新站点
+= 一个适配器文件（约 30–60 行）+ `manifest.json` 一行。把你的
+编程 AI 指向这个仓库，让它读代码——适配器接口在 `AI-EVOLUTION.md` 里。
 
 ## 安全
 
@@ -84,14 +74,22 @@ AI 经桥拿到文件，变成真正的聊天附件。安全阀：敏感路径�
 - 不接收、不保存、不代输密码；需要管理员权限的操作会弹系统对话框，**由你亲手点**
 - AI 跑破坏性命令前，必须先把命令给你看、等你同意
 
-## 打赏
+## 赞助
 
-如果 webai-hands 帮你省了时间，欢迎请作者喝杯咖啡：
+webai-hands 完全免费。如果它帮你省了时间，欢迎请作者喝杯咖啡：
 
 - [Ko-fi](https://ko-fi.com/achillesy)
 - [PayPal](https://paypal.me/achillesnewman)
 
+国内用户也可扫码赞助：
+
+| 微信 | 支付宝 |
+|---|---|
+| ![](sponsor/wechat.jpg) | ![](sponsor/alipay.jpg) |
+
+赞助完全自愿，不影响任何功能。
+
 ## 许可
 
-免费使用（仅限非商业用途）。版权 © 2026 Achillesy，保留所有权利。见 [LICENSE](LICENSE)。
-禁止商用、禁止转卖。
+免费使用（仅限非商业用途）。版权 © 2026 Achillesy。禁止商用、
+禁止转卖。见 [LICENSE](LICENSE)。

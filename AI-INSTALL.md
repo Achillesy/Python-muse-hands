@@ -1,0 +1,72 @@
+﻿# AI-INSTALL.md — 安装、验证与排错手册（给 AI 助手）
+
+> 配套 AI-GUIDE.md。用户第一次安装、或"测通桥"失败、或发命令块没反应时，
+> 读这份。装好之后的日常交互，看 AI-GUIDE.md。
+
+## 0. 什么时候读这份
+
+- 用户第一次 setup，还没确认装好
+- "测通桥"失败，或扩展图标徽标显示 ✕
+- 发命令块没回音、报错、或页面提示"发往扩展后台失败"
+- 换了电脑 / 重装 Chrome / 仓库改名或搬家
+
+装好了、桥通了，回到 AI-GUIDE.md。
+
+## 1. 首次安装
+
+需要：Chrome（或 Chromium 系浏览器）+ Python 3。
+
+**装扩展（人手动做）：**
+1. 浏览器打开 chrome://extensions
+2. 右上角打开「开发者模式」
+3. 点「加载已解压的扩展程序」，选中仓库的 extension/ 目录
+4. 工具栏出现 webai-hands 图标
+
+**装本机 host（人手动做，一次）：**
+- Windows：双击 native-host\install_windows.bat
+  或 PowerShell 里 `cd native-host; py -3 install.py`
+- macOS：终端跑 `python3 native-host/install.py`
+
+install.py 生成 host 清单并登记到 Chrome（Windows 写 HKCU 注册表）。
+跑一次就够；之后更新代码不用重跑，除非仓库搬家或改名。
+
+## 2. 验证：测通桥
+
+点工具栏 webai-hands 图标 → 点「测通桥」。
+
+- 显示「已连接 <机器名>」→ 桥通了，可以用。
+- 显示连接失败 → 看 §5 排错。
+- 徽标：✓ 就绪、… 执行中、✕ 断开。
+
+## 4. 三种“没反应”
+
+**模式 1：发块后完全没回音**
+让用户点扩展图标 → 测通桥。
+- 显示已连接：扩展↔host 通，问题在“页面→扩展”，多半是适配器没匹配到块，或页面没刷新（见 §5）。
+- 显示失败：host 没装好，去 §5。
+
+**模式 2：Console 有 [webai-hands] 日志但没结果**
+看是“适配器已选中”还是“尚无命令正文”。前者正常，后者说明块被渲染成残缺副本。
+
+**模式 3：想自主诊断**
+发诊断块：{"muse":"exec","id":"diag-001","cmd":"__diag__"}
+host 回报 hostname、pid、最近执行记录、host.log 尾巴。据此判断断在哪段。
+
+## 5. 断桥 / 发送失败排错（Windows 实测）
+
+### 5.1 测通桥失败
+先列注册表，对照扩展实际连的 host 名：
+
+    Get-ChildItem "HKCU:\Software\Google\Chrome\NativeMessagingHosts" | Where-Object Name -match "hands" | ForEach-Object { "{0} -> {1}" -f $_.PSChildName, (Get-ItemProperty $_.PSPath)."(default)" }
+
+再对照 extension/popup.js 里的 connectNative('com.webai.hands')。四者必须一致：扩展字符串、注册表子键名、清单文件名、清单内 name 字段。
+
+### 5.2 测通桥过了，但发块报“发往扩展后台失败”
+根因：安装/重载扩展后，chat 页面没刷新。旧 content script 上下文失效，sendMessage 必失败。
+解法：F5 刷新 chat 页面。
+
+### 5.3 改了扩展代码后
+chrome://extensions 点重载 → 再刷新所有已打开的 chat 页面。两步缺一不可。
+
+### 5.4 项目改名 / 仓库搬家后
+注册表还指着旧路径，Chrome 静默失败。重跑 install.py，清理旧注册表项，重载扩展，刷新页面。
