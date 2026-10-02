@@ -3,8 +3,11 @@
 // M2：内容脚本经长连接 Port 递来 exec → 转 Native Messaging 给 host →
 //     host 的 result / progress 沿原路回内容脚本。图标徽标即状态：
 //     … 执行中、✓ 就绪/完成、✕ 断开。
+// M4 预备：pong 里的 hostname 缓存进 chrome.storage.local，
+//          供内容脚本读取，做 §6.7 hostname 路由。
 
 const HOST = "com.muse.hands";
+const HOSTNAME_KEY = "mh_local_hostname";
 let nativePort = null;
 const pending = new Map(); // exec id -> 页面 Port
 
@@ -20,6 +23,14 @@ function ensureNativePort() {
     if (!msg) return;
     if (msg.type === "pong") {
       setBadge("✓", "#2e7d32");
+      // M4 预备：缓存本机 hostname，供 §6.7 路由用
+      if (msg.hostname) {
+        try {
+          const obj = {};
+          obj[HOSTNAME_KEY] = msg.hostname;
+          chrome.storage.local.set(obj);
+        } catch (e) {}
+      }
       return;
     }
     if (msg.type === "result" || msg.type === "error" || msg.type === "progress") {
@@ -40,7 +51,6 @@ function ensureNativePort() {
     console.log("[muse-hands] native port disconnected:", chrome.runtime.lastError);
     nativePort = null;
     setBadge("✕", "#c62828");
-    // 还在等的页面逐个回一条失败，别让它们干等
     for (const [id, page] of pending) {
       try {
         page.postMessage({ type: "error", id, error: "本地 host 连接已断开" });
