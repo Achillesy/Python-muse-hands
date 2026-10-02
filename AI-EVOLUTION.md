@@ -59,7 +59,21 @@ fillResult 用原生 setter + input 事件，让框架感知。
 5. chrome://extensions 重载扩展，刷新目标页面。
 6. 发一个 echo hello 块验证。
 
-## 5. 相关文档
+## 5. v2 门禁与版本号（改扩展必读）
+
+### 5.1 v2 门禁
+
+content.js 的 parseBlock 要求命令块 JSON 首行带 "v":2，否则忽略。原因：
+文档里的示例和真命令形式相同，黑名单堵不完（<唯一id> 这类变体总会漏）。
+门禁一劳永逸：示例故意不带 v → 永不执行；旧会话残留块不带 v → 不重演。
+
+### 5.2 版本号规矩
+
+改任何扩展文件后，必须 bump extension/manifest.json 的 version，
+再重载扩展。卡片上的版本号是"生效没"的唯一可靠信号。
+content.js 启动日志会打印版本（VERSION 取自 manifest，不用两处维护）。
+
+## 6. 相关文档
 
 - 日常交互、安全边界 → AI-GUIDE.md
 - 安装、测通桥、排错 → AI-INSTALL.md

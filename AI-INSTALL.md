@@ -38,6 +38,16 @@ install.py 生成 host 清单并登记到 Chrome（Windows 写 HKCU 注册表）
 - 显示连接失败 → 看 §5 排错。
 - 徽标：✓ 就绪、… 执行中、✕ 断开。
 
+## 2.5 确认扩展生效没
+
+改了扩展、重载之后，怎么看生效没？看 chrome://extensions 卡片上的版本号。
+改扩展必须 bump manifest.json 的 version；重载后卡片显示新版本号 = 生效。
+
+## 3. 两种链路，别混淆
+
+测通桥走 popup -> host；发命令块走 页面 content -> background -> host。
+两者独立。测通桥过了不代表发块就通，反之亦然。排错先分清断在哪条。
+
 ## 4. 三种“没反应”
 
 **模式 1：发块后完全没回音**
