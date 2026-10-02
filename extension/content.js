@@ -42,6 +42,8 @@ var stableTimers = {};
 var ready = false;
 var pagePort = null;
 var localHostname = null;
+var incompleteAt = {};
+var incompleteWarned = {};
 
 // ---------- 哨兵解析 ----------
 function parseBlock(text) {
@@ -134,7 +136,11 @@ function execBlock(block) {
   // 关键：残缺块（DeepSeek 里 <code> 只有首行 JSON、cmd 为空）
   // 不标记 processed，等完整元素（<pre>）出现再执行。
   if (!block.cmd) {
-    console.log('[webai-hands] 块 ' + block.id + ' 尚无命令正文，等待完整元素');
+    incompleteAt[block.id] = Date.now();
+    if (!incompleteWarned[block.id]) {
+      incompleteWarned[block.id] = true;
+      console.log('[webai-hands] 块 ' + block.id + ' 尚无命令正文，等待完整元素');
+    }
     return;
   }
   if (block.host && block.host !== '*' && !hostMatches(block.host)) {
@@ -261,6 +267,7 @@ function scan() {
     var text = el.innerText || el.textContent || '';
     var block = parseBlock(text);
     if (!block || processed[block.id] || inFlight[block.id]) return;
+    if (!block.cmd && incompleteAt[block.id] && Date.now() - incompleteAt[block.id] < 5000) return;
     if (!firstSeenAt[block.id]) {
       firstSeenAt[block.id] = Date.now();
       console.log('[webai-hands] 标记块 ' + block.id + ' 出现了');
