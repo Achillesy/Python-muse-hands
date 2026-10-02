@@ -61,6 +61,18 @@ Open DeepSeek (or Muse) in your browser and paste [`AI-GUIDE.md`](AI-GUIDE.md) i
 
 The AI sends a command block, the extension runs it, and the answer appears in the chat.
 
+## Send files to the AI
+
+The AI can pull a file from your computer and attach it to the chat —
+no manual uploading. Just ask:
+
+> "Summarize this PDF for me: /Users/me/Documents/report.pdf"
+
+The AI fetches the file through the bridge and attaches it as a real
+chat attachment. Guardrails: sensitive paths (SSH keys, browser cookies,
+`.env`, …) are refused, single files are capped at 25MB, and nothing
+leaves your machine unless the AI asks for it in the chat.
+
 ## For developers
 
 - `extension/` — Chrome MV3 extension: grabs command blocks, returns results
