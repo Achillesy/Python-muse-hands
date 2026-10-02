@@ -43,6 +43,9 @@ var ready = false;
 var pagePort = null;
 var localHostname = null;
 var incompleteAt = {};
+var pendingResults = [];
+var flushTimer = null;
+var flushHardDeadline = 0;
 var incompleteWarned = {};
 
 // ---------- 哨兵解析 ----------
@@ -98,6 +101,29 @@ function markProcessed(id) {
 }
 
 // ---------- 与 background 的长连接 ----------
+function flushResults() {
+  if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
+  flushHardDeadline = 0;
+  if (!pendingResults.length) return;
+  var text = pendingResults.join('\n\n---\n\n');
+  pendingResults = [];
+  fillBack(text);
+}
+
+function scheduleFlush() {
+  if (flushTimer) clearTimeout(flushTimer);
+  var pending = Object.keys(inFlight).length;
+  var now = Date.now();
+  if (!flushHardDeadline) flushHardDeadline = now + 8000;
+  var wait;
+  if (pending > 0) {
+    wait = Math.max(200, flushHardDeadline - now);
+  } else {
+    wait = 500;
+  }
+  flushTimer = setTimeout(flushResults, wait);
+}
+
 function getPort() {
   if (pagePort) return pagePort;
   pagePort = chrome.runtime.connect({ name: 'webai-hands' });
@@ -107,11 +133,13 @@ function getPort() {
       delete inFlight[msg.id];
       var text = formatResult(msg);
       delete cmdById[msg.id];
-      fillBack(text);
+      pendingResults.push(text);
+      scheduleFlush();
     } else if (msg.type === 'error' && msg.id) {
       delete inFlight[msg.id];
       delete cmdById[msg.id];
-      fillBack('' + (msg.error || '未知错误'));
+      pendingResults.push('' + (msg.error || '未知错误'));
+      scheduleFlush();
     }
     // progress 心跳帧只是保活长连接，不打扰页面
   });
