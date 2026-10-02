@@ -92,6 +92,8 @@ def run_exec(msg):
         cached["duplicate"] = True
         return cached
     cmd = msg.get("cmd", "")
+    if cmd.strip() == "__diag__":
+        return run_diag(msg)
     try:
         timeout = int(msg.get("timeout") or DEFAULT_TIMEOUT)
     except (TypeError, ValueError):
@@ -146,9 +148,36 @@ def run_exec(msg):
     }
     if error:
         res["error"] = error
+    res["ts"] = int(time.time())
     HISTORY[rid] = dict(res)
     save_history(HISTORY)
     return res
+
+
+def run_diag(msg):
+    try:
+        tail = []
+        if os.path.exists(LOG_PATH):
+            with open(LOG_PATH, encoding="utf-8", errors="replace") as f:
+                tail = f.readlines()[-20:]
+        recent = sorted(HISTORY.items(), key=lambda kv: kv[1].get("ts", 0), reverse=True)[:10]
+        recent_list = [{"id": k, "ok": v.get("ok"), "ts": v.get("ts")} for k, v in recent]
+        return {
+            "type": "result",
+            "id": msg.get("id"),
+            "hostname": socket.gethostname(),
+            "platform": sys.platform,
+            "pid": os.getpid(),
+            "history_size": len(HISTORY),
+            "history_limit": HISTORY_LIMIT,
+            "recent": recent_list,
+            "log_tail": "".join(tail),
+            "ok": True,
+            "exit_code": 0,
+            "duration_ms": 0,
+        }
+    except Exception as e:
+        return {"type": "error", "id": msg.get("id"), "error": "diag failed: %r" % (e,)}
 
 
 def handle(msg):
@@ -162,6 +191,8 @@ def handle(msg):
         }
     if t == "exec":
         return run_exec(msg)
+    if t == "diag":
+        return run_diag(msg)
     return {"type": "error", "id": msg.get("id"), "error": "unknown type: %r" % (t,)}
 
 

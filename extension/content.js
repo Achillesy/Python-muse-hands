@@ -50,12 +50,14 @@ function parseBlock(text) {
   var head;
   try { head = JSON.parse(first); } catch (e) { return null; }
   if (!head || head.muse !== 'exec' || !head.id) return null;
+  var cmdFromHead = (typeof head.cmd === 'string') ? head.cmd : null;
+  var cmdFromBody = (nl === -1 ? '' : text.slice(nl + 1)).trim();
   return {
     id: String(head.id),
     host: head.host || null,
     shell: head.shell || null,
     timeout: head.timeout || null,
-    cmd: (nl === -1 ? '' : text.slice(nl + 1)).trim()
+    cmd: cmdFromHead !== null ? cmdFromHead : cmdFromBody
   };
 }
 
@@ -168,7 +170,30 @@ function clip(s) {
   return s.slice(0, KEEP_HEAD) + '\n\n…（中略）…\n\n' + s.slice(s.length - KEEP_TAIL);
 }
 
+function formatDiag(res) {
+  var lines = [];
+  lines.push('webai-hands diag  id=' + res.id);
+  lines.push('host: ' + (res.hostname || '?') + '  platform: ' + (res.platform || '?') + '  pid: ' + (res.pid || '?'));
+  lines.push('history: ' + res.history_size + '/' + res.history_limit);
+  if (res.recent && res.recent.length) {
+    lines.push('recent:');
+    res.recent.forEach(function (r) {
+      var t = r.ts ? new Date(r.ts * 1000).toTimeString().slice(0, 8) : '--:--:--';
+      lines.push('  ' + (r.id || '?') + '  ' + (r.ok ? 'ok' : 'fail') + '  ' + t);
+    });
+  }
+  if (res.log_tail) {
+    lines.push('log_tail:');
+    lines.push(res.log_tail.replace(/\s+$/, ''));
+  }
+  return lines.join('\n');
+}
+
+
 function formatResult(res) {
+  if (res.history_size !== undefined && res.log_tail !== undefined) {
+    return formatDiag(res);
+  }
   var secs = ((res.duration_ms || 0) / 1000).toFixed(1);
   var lines = [];
   lines.push('webai-hands 结果 id=' + res.id + ' exit=' + res.exit_code +
