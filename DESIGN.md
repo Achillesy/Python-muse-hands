@@ -143,7 +143,8 @@ Chrome（muse.ai 页面），每台都装扩展＋host。muse.ai 消息跨设备
 
 首发只声明已验证的站点，用户装扩展时权限透明、审核快。
 
-- 首批：muse.ai、chat.deepseek.com、chatgpt.com（第三个待调试）
+- 首批：muse.ai、chat.deepseek.com（两个均已验证）
+- 后续：根据用户需求决定是否加第三个站点
 - 加新站点 = 改 manifest 的 matches + host_permissions + 加一个适配器文件 + 重发版
 - 用户两条路：直接用调试好的扩展；或从 GitHub 取源码自己调
 - 根据用户反馈，哪个 WebAI 有需求就加哪个

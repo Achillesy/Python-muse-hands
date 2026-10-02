@@ -4,7 +4,7 @@
 
 ## 这是什么
 
-你在 DeepSeek / ChatGPT / Claude 等网页版聊天里说话，AI 输出一条约定格式的命令块，
+你在 DeepSeek 网页版聊天里说话，AI 输出一条约定格式的命令块，
 浏览器扩展抓到它，通过 Chrome 官方的 Native Messaging 通道交给本机的 Python host 执行，
 再把结果填回聊天框 —— 全程不需要你复制粘贴、不需要你切窗口当"传话筒"。
 
@@ -16,8 +16,8 @@
 |---|---|---|
 | `chat.deepseek.com` | ✅ 已验证 | 自动发送已通 |
 | `muse.ai` | ✅ 已验证 | |
-| `chatgpt.com` | 🚧 待调试 | 欢迎贡献适配器 |
-| 其它 | 🚧 欢迎提交 | 见 `FOR-AI.md` |
+
+其它 Web AI 站点可通过添加适配器扩展，方法见 `FOR-AI.md`。
 
 ## 两条使用路径
 
