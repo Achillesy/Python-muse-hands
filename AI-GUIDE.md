@@ -145,16 +145,19 @@ host 会回报 hostname、pid、最近 10 条执行记录、host.log 尾巴。
 - 流程：host 读文件→base64→扩展重组→content.js 构造 File→
   适配器塞进页面 input[type=file]→dispatch change→站点自己上传。
 - 已验证：deepseek 端到端通过（2026-10-02，README.md 自动上传成功）。
-  muse 适配器代码与 deepseek 同构，但尚未实跑验证。
+  muse 端到端通过（2026-10-02：.txt 附件注入成功，send:false 生效）。
+- 站点限制（**按站点分别处理**，不统一）：
+  - deepseek：不收压缩包（.zip/.rar/.7z/.tar/.gz 等）——从网页前端挖出的限制，实测确认。
+  - muse：无已知类型限制——input[type=file] 没有 accept 属性；
+    2026-10-02 实测 .txt/.zip/.rar/.exe/.7z 全部收下。
+  - 被拒是站点策略，任何工具都绕不开。
+- 两站的 input[type=file] 都常驻 DOM、隐藏（visible=false, 0x0），
+  可直接塞，不用先点按钮。
 - 安全边界（重要，比 exec 更敏感——文件真的离开本机）：
   - host 侧拒绝名单：.ssh/、.aws/、.gnupg/、id_rsa、.pem、.key、.env、
     keychain、Cookies、Login Data、credentials 等，命中即拒。
   - 单文件上限 25MB，超了拒。base64 分块传（每块 ~375KB 原始数据）。
   - 文件一旦上传就离开本机，敏感文件别传。
-- 站点限制：deepseek 和 muse 的 accept 白名单**逐字相同**（同一个上传组件），
-  收图片/代码/文档/Office，**不收 .zip/.rar/.7z/.tar/.gz 等压缩包**。
-  被拒是站点策略，任何工具都绕不开。两站的 input[type=file] 都常驻 DOM、
-  隐藏（visible=false, 0x0），可直接塞，不用先点按钮。
 - 注意：适配器 uploadFile 用 DataTransfer 构造 File 塞 input.files——
   浏览器禁止 JS 给 input 塞路径，只能塞字节（所以必须 host 读→回传）。
 
