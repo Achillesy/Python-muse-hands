@@ -19,12 +19,31 @@ import time
 
 LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "host.log")
 DEFAULT_TIMEOUT = 120  # 秒；M1 先给保守值，截断/超时策略 M3 定型
+HISTORY_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "exec_history.json")
+HISTORY_LIMIT = 500  # 最多保留最近 500 条 id 的执行记录
 
 
 def log(line):
     try:
         with open(LOG_PATH, "a", encoding="utf-8") as f:
             f.write(time.strftime("%Y-%m-%d %H:%M:%S ") + line + "\n")
+    except OSError:
+        pass
+
+
+def load_history():
+    try:
+        with open(HISTORY_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def save_history(hist):
+    try:
+        items = sorted(hist.items(), key=lambda kv: kv[1].get("ts", 0), reverse=True)[:HISTORY_LIMIT]
+        with open(HISTORY_PATH, "w", encoding="utf-8") as f:
+            json.dump(dict(items), f, ensure_ascii=False, indent=2)
     except OSError:
         pass
 
@@ -65,6 +84,13 @@ def shell_argv(cmd):
 
 
 def run_exec(msg):
+    rid = msg.get("id")
+    if rid in HISTORY:
+        log("duplicate id=%s, returning cached" % rid)
+        cached = dict(HISTORY[rid])
+        cached["type"] = "result"
+        cached["duplicate"] = True
+        return cached
     cmd = msg.get("cmd", "")
     try:
         timeout = int(msg.get("timeout") or DEFAULT_TIMEOUT)
@@ -120,6 +146,8 @@ def run_exec(msg):
     }
     if error:
         res["error"] = error
+    HISTORY[rid] = dict(res)
+    save_history(HISTORY)
     return res
 
 
@@ -137,8 +165,14 @@ def handle(msg):
     return {"type": "error", "id": msg.get("id"), "error": "unknown type: %r" % (t,)}
 
 
+HISTORY = {}
+
+
 def main():
-    log("host started platform=%s hostname=%s" % (sys.platform, socket.gethostname()))
+    global HISTORY
+    HISTORY = load_history()
+    log("host started platform=%s hostname=%s history=%d" % (
+        sys.platform, socket.gethostname(), len(HISTORY)))
     while True:
         msg = read_message()
         if msg is None:
