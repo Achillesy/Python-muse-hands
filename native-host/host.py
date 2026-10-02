@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # webai-hands 本地 host（Chrome Native Messaging）
 #
 # Chrome 通过 stdio 把它拉起：扩展发来的消息是 4 字节小端长度前缀
@@ -18,6 +18,7 @@ import subprocess
 import sys
 import threading
 import time
+import ctx_summary
 
 LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "host.log")
 DEFAULT_TIMEOUT = 120  # 秒；M1 先给保守值，截断/超时策略 M3 定型
@@ -104,6 +105,8 @@ def run_exec(msg):
     cmd = msg.get("cmd", "")
     if cmd.strip() == "__diag__":
         return run_diag(msg)
+    if cmd.strip() == "__ctx_summary__":
+        return ctx_summary.run(msg, HISTORY)
     try:
         timeout = int(msg.get("timeout") or DEFAULT_TIMEOUT)
     except (TypeError, ValueError):

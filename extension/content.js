@@ -1,4 +1,4 @@
-// webai-hands 内容脚本（核心层，与站点无关）
+﻿// webai-hands 内容脚本（核心层，与站点无关）
 //
 // 架构：核心层 + 适配器层（每站点一份）。
 // 适配器通过 window.__museHandsAdapters[hostname] 注册；
@@ -47,7 +47,11 @@ var pendingResults = [];
 var flushTimer = null;
 var flushHardDeadline = 0;
 var incompleteWarned = {};
-var attachMeta = {}; // attach id -> {text, send}
+var attachMeta = {};
+var baselineIds = {};
+var ctxChars = 0;
+var ctxWarned = false;
+var PLACEHOLDER_IDS = { "唯一id": 1, "任意唯一id": 1, "your-id": 1, "example": 1, "示例": 1, "xxx": 1 };
 
 // ---------- 哨兵解析 ----------
 function parseBlock(text) {
@@ -343,6 +347,11 @@ function formatResult(res) {
 
 // ---------- 填回（交给适配器） ----------
 function fillBack(text) {
+  ctxChars += (text ? text.length : 0);
+  if (!ctxWarned && ctxChars > 150000) {
+    ctxWarned = true;
+    text = text + '\n\n[webai-hands] 上下文将满（已回填 ' + ctxChars + ' 字符）。建议新开对话，先发 __ctx_summary__ 存档。';
+  }
   var ok = false;
   try { ok = adapter.fillResult(text); } catch (e) {
     console.error('[webai-hands] adapter.fillResult 抛异常：', e);
@@ -375,8 +384,19 @@ function trySend() {
 }
 
 // ---------- 扫描 ----------
+function takeBaseline() {
+  try {
+    (adapter.findBlocks() || []).forEach(function (el) {
+      var b0 = parseBlock(el.innerText || el.textContent || '');
+      if (b0 && b0.id) baselineIds[b0.id] = true;
+    });
+    console.log('[webai-hands] baseline ' + Object.keys(baselineIds).length + ' blocks');
+  } catch (e) {}
+}
+
 function scan() {
   if (!ready) return;
+  if (!scan.baselined) { scan.baselined = true; takeBaseline(); }
   var els;
   try { els = adapter.findBlocks(); } catch (e) {
     console.error('[webai-hands] adapter.findBlocks 抛异常：', e);
@@ -387,6 +407,7 @@ function scan() {
     var text = el.innerText || el.textContent || '';
     var block = parseBlock(text);
     if (!block || processed[block.id] || inFlight[block.id]) return;
+    if (PLACEHOLDER_IDS[block.id] || baselineIds[block.id]) { markProcessed(block.id); return; }
     if (block.kind !== 'probe' && block.kind !== 'attach' && !block.cmd && incompleteAt[block.id] && Date.now() - incompleteAt[block.id] < 5000) return;
     if (!firstSeenAt[block.id]) {
       firstSeenAt[block.id] = Date.now();
