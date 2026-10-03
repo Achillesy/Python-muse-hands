@@ -59,19 +59,36 @@ var WARMUP_QUIET_MS = 3000;
 var WARMUP_MAX_MS = 12000;
 var warmupStart = Date.now();
 var warmupDone = false;
-var lastMutationAt = Date.now();
+var warmupQuietTimer = null;
 var userAborted = false;
 var selfActing = false;
 
+// 预热结束条件（任一满足即结束）：
+//  1. DOM 静默 WARMUP_QUIET_MS（且距启动已过 WARMUP_MIN_MS）；
+//  2. 兜底：启动 WARMUP_MAX_MS 后第一次 scan 时强制结束。
+// 注意静默检测必须用独立 timer：scan 只在 mutation 后 300ms 跑，
+// 在 inWarmup 里永远观测不到"3 秒静默"。
+function pokeWarmup() {
+  if (warmupDone) return;
+  if (warmupQuietTimer) clearTimeout(warmupQuietTimer);
+  warmupQuietTimer = setTimeout(function () {
+    if (!warmupDone && Date.now() - warmupStart >= WARMUP_MIN_MS) {
+      warmupDone = true;
+      warmupQuietTimer = null;
+      console.log('[webai-hands] 预热结束（静默），此后出现的块才会执行');
+    }
+  }, WARMUP_QUIET_MS);
+}
+
 function inWarmup() {
   if (warmupDone) return false;
-  var now = Date.now();
-  if (now - warmupStart >= WARMUP_MAX_MS) { warmupDone = true; return false; }
-  if (now - warmupStart < WARMUP_MIN_MS) return true;
-  if (now - lastMutationAt < WARMUP_QUIET_MS) return true;
-  warmupDone = true;
-  console.log('[webai-hands] 预热结束，此后出现的块才会执行');
-  return false;
+  if (Date.now() - warmupStart >= WARMUP_MAX_MS) {
+    warmupDone = true;
+    if (warmupQuietTimer) { clearTimeout(warmupQuietTimer); warmupQuietTimer = null; }
+    console.log('[webai-hands] 预热结束（超时），此后出现的块才会执行');
+    return false;
+  }
+  return true;
 }
 
 function abortChain(reason) {
@@ -82,6 +99,12 @@ function abortChain(reason) {
   Object.keys(inFlight).forEach(function (id) { delete inFlight[id]; });
   Object.keys(cmdById).forEach(function (id) { delete cmdById[id]; });
   Object.keys(attachMeta).forEach(function (id) { delete attachMeta[id]; });
+  // 中止前已见过（含正在稳定等待、尚无正文的块）一律吞掉：
+  // 之后链重新武装时它们不再复活，只有真正的新块才会执行。
+  Object.keys(firstSeenAt).forEach(function (id) { markProcessed(id); });
+  firstSeenAt = {};
+  Object.keys(incompleteAt).forEach(function (id) { delete incompleteAt[id]; });
+  Object.keys(incompleteWarned).forEach(function (id) { delete incompleteWarned[id]; });
   pendingResults = [];
   if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
   flushHardDeadline = 0;
@@ -420,19 +443,8 @@ function trySend() {
 }
 
 // ---------- 扫描 ----------
-function takeBaseline() {
-  try {
-    (adapter.findBlocks() || []).forEach(function (el) {
-      var b0 = parseBlock(el.innerText || el.textContent || '');
-      if (b0 && b0.id) baselineIds[b0.id] = true;
-    });
-    console.log('[webai-hands] baseline ' + Object.keys(baselineIds).length + ' blocks');
-  } catch (e) {}
-}
-
 function scan() {
   if (!ready) return;
-  if (userAborted) return;
   var els;
   try { els = adapter.findBlocks(); } catch (e) {
     console.error('[webai-hands] adapter.findBlocks 抛异常：', e);
@@ -452,6 +464,12 @@ function scan() {
       return;
     }
     if (block.kind !== 'probe' && block.kind !== 'attach' && !block.cmd && incompleteAt[block.id] && Date.now() - incompleteAt[block.id] < 5000) return;
+    if (userAborted) {
+      // 中止后出现的新块 = 用户还在继续对话：重新武装，后续块正常执行。
+      // 中止前已见过的块已在 abortChain 里标记 processed，不会复活。
+      userAborted = false;
+      console.log('[webai-hands] 中止后出现新块 ' + block.id + '，链已重新武装');
+    }
     if (!firstSeenAt[block.id]) {
       firstSeenAt[block.id] = Date.now();
       console.log('[webai-hands] 标记块 ' + block.id + ' 出现了');
@@ -481,7 +499,7 @@ document.addEventListener('click', function (e) {
 
 var scanTimer = null;
 new MutationObserver(function () {
-  lastMutationAt = Date.now();
+  pokeWarmup();
   clearTimeout(scanTimer);
   scanTimer = setTimeout(scan, 300);
 }).observe(document.documentElement, {
@@ -489,6 +507,7 @@ new MutationObserver(function () {
 });
 
 loadProcessed(function () {
+  pokeWarmup();
   scan();
   console.log('[webai-hands] 内容脚本已启动 v' + VERSION + '：需 v>=2 的块才执行，结果默认只填回不发送。');
 });

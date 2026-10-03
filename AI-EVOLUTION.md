@@ -12,7 +12,9 @@ Chrome 扩展抓到它，经 Native Messaging 交给本机 Python host 执行，
 ## 1. 架构（三件套）
 
 - extension/ — Chrome MV3 扩展。核心 content.js 站点无关；
-  adapters/ 每站点一份，负责三件事：findBlocks 找块、fillResult 回填、clickSend 发送。
+  adapters/ 每站点一份，负责三件事：findBlocks 找块、fillResult 回填、clickSend 发送，
+  另有一个可选方法 isStopButton（识别"停止/中断"按钮，用户点击即中止整条链；
+  尚无实测 DOM 依据的站点可以不实现，muse.js 即如此）。
 - native-host/ — Python host，host 名 com.webai.hands。执行 shell，
   返回 stdout/stderr/exit_code/耗时/hostname。host.py 主程序，install.py 登记。
 - 两者之间：Chrome 原生 Native Messaging（stdio，4 字节长度前缀 + JSON）。
@@ -36,13 +38,17 @@ Chrome 扩展抓到它，经 Native Messaging 交给本机 Python host 执行，
 
 ## 3. 适配器接口
 
-一个适配器 = 一个 JS 文件，向全局注册表注册自己。三个方法：
+一个适配器 = 一个 JS 文件，向全局注册表注册自己。三个必备方法 + 一个可选方法：
 
     reg["站点hostname"] = {
       name: "简短名",
       findBlocks: function () { /* 返回候选元素数组 */ },
       fillResult: function (text) { /* 填进输入框，成功返回 true */ },
-      clickSend:  function () { /* 点发送，成功返回 true */ }
+      clickSend:  function () { /* 点发送，成功返回 true */ },
+      // 可选：用户点击"停止/中断"按钮时 content.js 会调用它，中止当前链
+      //（清掉待执行块与待发结果；中止后出现的新块会自动重新武装）。
+      // 返回 true 即判定为停止按钮。不实现则该站点无此功能（muse.js 暂未实现）。
+      isStopButton: function (el) { /* 按 aria-label/文本识别停止按钮 */ }
     };
 
 fillResult 用原生 setter + input 事件，让框架感知。

@@ -19,8 +19,9 @@
    探针脚本退役存档。
 2. **Native Messaging 通道**：Chrome 官方的 stdio 桥（4 字节小端
    长度前缀 + UTF-8 JSON），host 名 `com.webai.hands`；不监听任何
-   网络端口。扩展 ID 由 manifest 中写死的 `key` 决定，全程固定；
-   本地程序的 `allowed_origins` 只认这一个 ID。
+   网络端口。扩展 ID 有两个：开发版由 manifest 中写死的 `key` 决定
+   （全程固定），商店版由 Chrome Web Store 分配；本地程序的
+   `allowed_origins` 两个都认（见 native-host/install.py 的 EXTENSION_IDS）。
 3. **本地 host（Python）**：收到命令后在第一台机器（Windows）上走
    PowerShell 执行（`-NoProfile -NonInteractive`），回执含
    stdout/stderr/exit_code/耗时；提权与密码只经系统 UAC，host 不
