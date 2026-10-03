@@ -10,6 +10,11 @@
   reg['muse.ai'] = {
     name: 'muse',
 
+    // 注：未实现 isStopButton（用户点停止/中断按钮时中止整条链，见 content.js）。
+    // 原因：muse.ai 的停止按钮尚无实测的 DOM 特征可依据，不硬抄 deepseek
+    // 适配器的文本正则，避免误伤。待实测补充选择器后再实现。
+    // （无此方法时 content.js 会静默跳过，不影响其它功能。）
+
     findBlocks: function () {
       var els = Array.prototype.slice.call(
         document.querySelectorAll('pre code, code, [class*="code"]')
