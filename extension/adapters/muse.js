@@ -28,6 +28,11 @@
     },
 
 
+    // Muse 附件限制（2026-10-02 实测）：
+    // - input[type=file] 没有 accept 属性，无已知类型限制；
+    // - 实测通过：txt / zip / rar / exe / 7z；10MB 文件实传成功；
+    // - host 侧单文件上限 25MB（见 native-host/host.py）。
+    // 这里不做类型预检，有问题让站点自己报错。
     uploadFile: function (file) {
       // file: {name, mime, bytes(Uint8Array)}
       var inputs = document.querySelectorAll('input[type=file]');

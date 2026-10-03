@@ -22,28 +22,98 @@
       );
     },
 
+    // Gemini 附件限制（2026-10-03 登录态实测）：
+    // - file input 平时不在 DOM 里，点「上传和工具」菜单后才渲染（2 个文档上传
+    //   + 1 个图片上传），所以这里先点开菜单、等 input 出现再注入；
+    //   为此本函数返回 Promise（content.js 用 Promise.resolve 兼容同步/异步）。
+    // - 文档上传 input 有明确的 accept 白名单（约 150 种扩展名：文档/数据/代码/
+    //   表格类，含 .zip；图片上传是 accept="image/*"）。用 input 自身的 accept
+    //   做预检，名单以页面实时读取为准，不在代码里硬编码。
+    // - 实测：txt / zip 均可作为附件接受（只到附件待发送阶段，未点发送，
+    //   服务端行为未知）。
     uploadFile: function (file) {
       // file: {name, mime, bytes(Uint8Array)}
-      var inputs = document.querySelectorAll('input[type=file]');
-      if (!inputs.length) return { ok: false, why: '页面无 input[type=file]' };
-      var input = inputs[0];
-      var blob, f;
-      try {
-        blob = new Blob([file.bytes], { type: file.mime || 'application/octet-stream' });
-        f = new File([blob], file.name, { type: file.mime || 'application/octet-stream' });
-      } catch (e) {
-        return { ok: false, why: '构造 File 失败：' + e.message };
-      }
-      var dt = new DataTransfer();
-      dt.items.add(f);
-      try {
-        input.files = dt.files;
-      } catch (e) {
-        return { ok: false, why: '写入 input.files 失败：' + e.message };
-      }
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      input.dispatchEvent(new Event('change', { bubbles: true }));
-      return { ok: true };
+      return new Promise(function (resolve) {
+        function done(ok, why) { resolve({ ok: ok, why: why }); }
+
+        function findDocInput() {
+          var inputs = document.querySelectorAll('input[type=file]');
+          for (var i = 0; i < inputs.length; i++) {
+            var acc = (inputs[i].getAttribute('accept') || '').toLowerCase();
+            // 文档上传 input 的 accept 很长且含 .zip；图片上传的是 image/*
+            if (acc && acc.indexOf('image/*') !== 0 && acc.indexOf('.zip') !== -1) {
+              return inputs[i];
+            }
+          }
+          return null;
+        }
+
+        function acceptOk(input, name) {
+          var acc = (input.getAttribute('accept') || '').toLowerCase();
+          var m = /\.([a-z0-9]+)$/i.exec(name || '');
+          var ext = m ? m[1].toLowerCase() : '';
+          if (!ext) return true; // 无后缀：不拦，交给站点自己判断
+          var parts = acc.split(',');
+          for (var i = 0; i < parts.length; i++) {
+            var p = parts[i].trim();
+            if (p.charAt(0) === '.' && p.slice(1) === ext) return true;
+          }
+          return false;
+        }
+
+        function closeMenu() {
+          try {
+            document.dispatchEvent(new KeyboardEvent('keydown',
+              { key: 'Escape', code: 'Escape', bubbles: true }));
+          } catch (e) {}
+        }
+
+        function inject(input) {
+          if (!acceptOk(input, file.name)) {
+            done(false, 'Gemini 不收这种文件（' + file.name +
+              '），仅支持文档/数据/代码/表格类及图片');
+            return;
+          }
+          var blob, f;
+          try {
+            blob = new Blob([file.bytes], { type: file.mime || 'application/octet-stream' });
+            f = new File([blob], file.name, { type: file.mime || 'application/octet-stream' });
+          } catch (e) {
+            done(false, '构造 File 失败：' + e.message);
+            return;
+          }
+          var dt = new DataTransfer();
+          dt.items.add(f);
+          try {
+            input.files = dt.files;
+          } catch (e) {
+            done(false, '写入 input.files 失败：' + e.message);
+            return;
+          }
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+          closeMenu();
+          done(true);
+        }
+
+        var input = findDocInput();
+        if (input) { inject(input); return; }
+        // input 还没渲染：点开「上传和工具」菜单等它出现
+        var menuBtn = document.querySelector(
+          'button[aria-label="上传和工具"], button[aria-label="上传"]');
+        if (!menuBtn) { done(false, '找不到上传菜单按钮'); return; }
+        menuBtn.click();
+        var tries = 0;
+        var timer = setInterval(function () {
+          tries++;
+          var inp = findDocInput();
+          if (inp) { clearInterval(timer); inject(inp); }
+          else if (tries >= 20) {
+            clearInterval(timer);
+            done(false, '上传菜单打开后仍无 file input');
+          }
+        }, 150);
+      });
     },
 
     fillResult: function (text) {

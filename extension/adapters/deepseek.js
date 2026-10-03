@@ -13,8 +13,23 @@
     },
 
 
+    // DeepSeek 附件限制（2026-10-02 实测，是网页前端的限制）：
+    // - 不收压缩包：zip / rar / 7z / tar / gz / bz2 / xz / tgz 等，
+    //   前端会直接拒掉。这里先拦，报错信息直接告诉用户解压后再传，
+    //   免得文件塞进输入框了才被拒、桥还误报成功。
+    // - 其他类型走 input[type=file] 的 accept（实测 txt 可传）。
     uploadFile: function (file) {
       // file: {name, mime, bytes(Uint8Array)}
+      var name = file.name || '';
+      var m = /\.([a-z0-9]+)$/i.exec(name);
+      var ext = m ? m[1].toLowerCase() : '';
+      var ARCHIVE_EXTS = {
+        'zip': 1, 'rar': 1, '7z': 1, 'tar': 1, 'gz': 1,
+        'bz2': 1, 'xz': 1, 'tgz': 1, 'tbz2': 1, 'txz': 1, 'cab': 1
+      };
+      if (ARCHIVE_EXTS[ext]) {
+        return { ok: false, why: 'DeepSeek 不收压缩包（' + name + '），请解压后传里面的文件' };
+      }
       var inputs = document.querySelectorAll('input[type=file]');
       if (!inputs.length) return { ok: false, why: '页面无 input[type=file]' };
       var input = inputs[0];

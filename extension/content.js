@@ -318,15 +318,21 @@ function onFileArrived(msg) {
     fillBack('[attach ' + msg.id + '] 适配器上传抛异常：' + e.message);
     return;
   }
-  if (!res || !res.ok) {
-    fillBack('[attach ' + msg.id + '] 上传失败：' + ((res && res.why) || '未知'));
-    return;
-  }
-  fillBack('[attach ' + msg.id + '] 已注入文件 ' + msg.name + '（' + bytes.length + ' 字节）');
-  if (meta.text) {
-    try { adapter.fillResult(meta.text); } catch (e) {}
-  }
-  if (meta.send) setTimeout(trySend, 500);
+  // uploadFile 可同步返回 {ok, why}，也可返回 Promise（gemini 需先点开上传菜单
+  // 等 input 渲染）。Promise.resolve 兼容两种。
+  Promise.resolve(res).then(function (r) {
+    if (!r || !r.ok) {
+      fillBack('[attach ' + msg.id + '] 上传失败：' + ((r && r.why) || '未知'));
+      return;
+    }
+    fillBack('[attach ' + msg.id + '] 已注入文件 ' + msg.name + '（' + bytes.length + ' 字节）');
+    if (meta.text) {
+      try { adapter.fillResult(meta.text); } catch (e) {}
+    }
+    if (meta.send) setTimeout(trySend, 500);
+  }, function (e) {
+    fillBack('[attach ' + msg.id + '] 适配器上传抛异常：' + (e && e.message || e));
+  });
 }
 
 
