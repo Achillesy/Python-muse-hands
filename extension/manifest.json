@@ -12,12 +12,14 @@
         "adapters/muse.js",
         "adapters/deepseek.js",
         "adapters/gemini.js",
+        "adapters/chatgpt.js",
         "content.js"
       ],
       "matches": [
         "https://muse.ai/*",
         "https://chat.deepseek.com/*",
-        "https://gemini.google.com/*"
+        "https://gemini.google.com/*",
+        "https://chatgpt.com/*"
       ],
       "run_at": "document_idle"
     }
@@ -26,7 +28,8 @@
   "host_permissions": [
     "https://muse.ai/*",
     "https://chat.deepseek.com/*",
-    "https://gemini.google.com/*"
+    "https://gemini.google.com/*",
+    "https://chatgpt.com/*"
   ],
   "icons": {
     "16": "icons/icon16.png",
@@ -40,5 +43,5 @@
     "nativeMessaging",
     "storage"
   ],
-  "version": "0.5.4"
+  "version": "0.5.5"
 }

@@ -57,7 +57,8 @@ uploadFile(file) 注入附件，返回 {ok:true} 或 {ok:false, why:'原因'}；
 需要异步操作时（如 gemini 点开上传菜单等 input 渲染）可返回 Promise，
 content.js 用 Promise.resolve 兼容两种。各站点的上传限制必须写进各自的
 uploadFile 里（注释 + 预检），不要共用一份含糊的实现：
-deepseek 拦压缩包、muse 无类型限制、gemini 按 input 自身 accept 白名单预检。
+deepseek 拦压缩包、muse 无类型限制、gemini 按 input 自身 accept 白名单预检、
+chatgpt 用 input#upload-files（免费版额度用完会拒收，与类型无关）。
 
 ## 4. 为新站点加适配器
 
