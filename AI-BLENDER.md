@@ -18,6 +18,18 @@ socket，协议是 null 字节分隔的 JSON：
 2. Blender 里打开 "Allow Online Access"——否则插件自启动 timer 不注册，
    9876 没人监听。**开了之后要重启 Blender 才生效。**
 
+**如果 9876 没有监听、且用户确认没装过插件 → 停下，让用户去装官方
+Blender Lab MCP 插件（Extension id `mcp`）。不要试图自己写一个 socket
+服务端或替代控制器塞进 Blender——那是用户的动作，不是你的。** 引导用户：
+
+1. 在 Blender 的 Extensions 面板里搜索并安装 Extension id `mcp`
+   （官方 Blender Lab MCP 插件）。
+2. 勾选 "Allow Online Access"。
+3. **重启 Blender**。
+4. 回来重测 9876 是否有人监听。
+
+插件装好之前，别往下走 §2 的发命令步骤。
+
 ## 2. 怎么发命令
 
 把 Python 代码写进一个文件，再用仓库里的客户端发：

@@ -49,6 +49,13 @@
       return true;
     },
 
+    isStopButton: function (el) {
+      if (!el) return false;
+      var label = (el.getAttribute && el.getAttribute('aria-label')) || '';
+      var txt = (el.textContent || '').trim();
+      return /stop|abort|停止|中断|中止/i.test(label + ' ' + txt);
+    },
+
     clickSend: function () {
       var sels = [
         'button[aria-label*="发送"]',

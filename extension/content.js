@@ -54,6 +54,39 @@ var ctxChars = 0;
 var ctxWarned = false;
 var PLACEHOLDER_IDS = { "唯一id": 1, "任意唯一id": 1, "your-id": 1, "example": 1, "示例": 1, "xxx": 1 };
 
+var WARMUP_MIN_MS = 2000;
+var WARMUP_QUIET_MS = 3000;
+var WARMUP_MAX_MS = 12000;
+var warmupStart = Date.now();
+var warmupDone = false;
+var lastMutationAt = Date.now();
+var userAborted = false;
+var selfActing = false;
+
+function inWarmup() {
+  if (warmupDone) return false;
+  var now = Date.now();
+  if (now - warmupStart >= WARMUP_MAX_MS) { warmupDone = true; return false; }
+  if (now - warmupStart < WARMUP_MIN_MS) return true;
+  if (now - lastMutationAt < WARMUP_QUIET_MS) return true;
+  warmupDone = true;
+  console.log('[webai-hands] 预热结束，此后出现的块才会执行');
+  return false;
+}
+
+function abortChain(reason) {
+  if (userAborted) return;
+  userAborted = true;
+  console.log('[webai-hands] 链中止：' + reason);
+  Object.keys(stableTimers).forEach(function (k) { clearTimeout(stableTimers[k]); delete stableTimers[k]; });
+  Object.keys(inFlight).forEach(function (id) { delete inFlight[id]; });
+  Object.keys(cmdById).forEach(function (id) { delete cmdById[id]; });
+  Object.keys(attachMeta).forEach(function (id) { delete attachMeta[id]; });
+  pendingResults = [];
+  if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
+  flushHardDeadline = 0;
+}
+
 // ---------- 哨兵解析 ----------
 function parseBlock(text) {
   var nl = text.indexOf('\n');
@@ -377,10 +410,11 @@ function maybeAutoSend() {
 
 function trySend() {
   var ok = false;
+  selfActing = true;
   try { ok = adapter.clickSend(); } catch (e) {
     console.error('[webai-hands] adapter.clickSend 抛异常：', e);
     ok = false;
-  }
+  } finally { selfActing = false; }
   if (ok) console.log('[webai-hands] 已自动发送');
   else console.log('[webai-hands] 未找到发送按钮，保持只填不发');
 }
@@ -398,7 +432,7 @@ function takeBaseline() {
 
 function scan() {
   if (!ready) return;
-  if (!scan.baselined) { scan.baselined = true; takeBaseline(); }
+  if (userAborted) return;
   var els;
   try { els = adapter.findBlocks(); } catch (e) {
     console.error('[webai-hands] adapter.findBlocks 抛异常：', e);
@@ -409,7 +443,14 @@ function scan() {
     var text = el.innerText || el.textContent || '';
     var block = parseBlock(text);
     if (!block || processed[block.id] || inFlight[block.id]) return;
-    if (PLACEHOLDER_IDS[block.id] || baselineIds[block.id]) { markProcessed(block.id); return; }
+    if (inWarmup() || baselineIds[block.id] || PLACEHOLDER_IDS[block.id]) {
+      if (!baselineIds[block.id]) {
+        baselineIds[block.id] = true;
+        console.log('[webai-hands] 预热吸收历史块 ' + block.id);
+      }
+      markProcessed(block.id);
+      return;
+    }
     if (block.kind !== 'probe' && block.kind !== 'attach' && !block.cmd && incompleteAt[block.id] && Date.now() - incompleteAt[block.id] < 5000) return;
     if (!firstSeenAt[block.id]) {
       firstSeenAt[block.id] = Date.now();
@@ -418,7 +459,7 @@ function scan() {
     var fp = block.id + '|' + fingerprint(text);
     clearTimeout(stableTimers[fp]);
     stableTimers[fp] = setTimeout(function () {
-      if (processed[block.id] || inFlight[block.id]) return;
+      if (userAborted || processed[block.id] || inFlight[block.id]) return;
       var again = parseBlock(el.innerText || el.textContent || '');
       if (!again) return;
       console.log('[webai-hands] 标记块 ' + block.id + ' 已稳定，开始执行');
@@ -429,8 +470,18 @@ function scan() {
   });
 }
 
+document.addEventListener('click', function (e) {
+  if (selfActing) return;
+  var t = e.target;
+  var btn = t && t.closest ? t.closest('button, [role="button"]') : null;
+  if (!btn) return;
+  if (!adapter.isStopButton || !adapter.isStopButton(btn)) return;
+  abortChain('用户点了停止/中断按钮');
+}, true);
+
 var scanTimer = null;
 new MutationObserver(function () {
+  lastMutationAt = Date.now();
   clearTimeout(scanTimer);
   scanTimer = setTimeout(scan, 300);
 }).observe(document.documentElement, {
